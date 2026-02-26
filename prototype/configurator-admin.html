@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staleks - Конфигуратор Администрирование</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #C0DF16;
+      --accent-hover: #a8c410;
+      --accent-light: #f8fbe8;
+      --sidebar: #212322;
+      --sidebar-hover: #2d2e2d;
+      --bg: #FAF9F5;
+      --muted: #969C99;
+      --error: #DF1616;
+      --white: #FFFFFF;
+      --border: #E2E2E0;
+      --text: #1A1A1A;
+      --text-secondary: #5A5A5A;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-lg: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Montserrat', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    .header { background: var(--sidebar); padding: 12px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 200; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--accent); color: var(--sidebar); font-weight: 700; font-size: 17px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+    .logo-text { color: var(--white); font-weight: 700; font-size: 16px; }
+    .logo-text span { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 8px; }
+
+    /* Layout */
+    .app-layout { display: flex; flex: 1; min-height: calc(100vh - 56px); }
+
+    /* Sidebar */
+    .sidebar { width: 240px; background: var(--sidebar); padding: 12px 0; flex-shrink: 0; position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; }
+    .nav-item:hover { background: var(--sidebar-hover); color: #ccc; }
+    .nav-item.active { background: rgba(192,223,22,0.08); color: var(--white); border-left-color: var(--accent); }
+    .nav-item .nav-icon { font-size: 16px; width: 22px; text-align: center; }
+    .nav-item .nav-badge { margin-left: auto; background: rgba(255,255,255,0.12); color: var(--muted); font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px; }
+    .nav-item.active .nav-badge { background: rgba(192,223,22,0.2); color: var(--accent); }
+    .nav-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 8px 16px; }
+
+    /* Main content */
+    .main-content { flex: 1; padding: 24px 28px 60px; overflow-y: auto; max-height: calc(100vh - 56px); }
+
+    /* Page header */
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .page-title { font-size: 18px; font-weight: 700; }
+    .page-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Cards */
+    .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-primary { background: var(--accent); color: var(--sidebar); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: #f0f0ee; color: var(--text-secondary); }
+    .btn-secondary:hover { background: #e5e5e3; }
+    .btn-danger { background: #fde8e8; color: var(--error); }
+    .btn-danger:hover { background: #f9d0d0; }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+    .btn-icon { background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 14px; color: var(--muted); transition: all 0.15s; }
+    .btn-icon:hover { background: #f0f0ee; color: var(--text); }
+    .btn-icon.danger:hover { background: #fde8e8; color: var(--error); }
+
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .data-table th { background: #f5f5f3; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; }
+    .data-table td { padding: 8px 10px; border-top: 1px solid var(--border); vertical-align: middle; }
+    .data-table tbody tr:hover { background: var(--accent-light); }
+    .data-table .code { font-family: 'Courier New', monospace; font-size: 11px; color: var(--muted); }
+    .data-table .actions { display: flex; gap: 2px; justify-content: flex-end; }
+    .group-divider td { background: #f0f0ee; font-weight: 600; font-size: 11px; color: var(--text-secondary); padding: 6px 10px; border-top: 2px solid var(--border); }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .badge-lime { background: var(--accent-light); color: #5a6b0a; }
+    .badge-blue { background: #EFF6FF; color: #2563EB; }
+    .badge-purple { background: #F3E8FF; color: #7C3AED; }
+    .badge-orange { background: #FFF7ED; color: #D97706; }
+    .badge-gray { background: #f0f0ee; color: #666; }
+    .badge-teal { background: #E6FFFA; color: #0D9488; }
+    .badge-red { background: #FEE2E2; color: var(--error); }
+
+    /* Toggle switch */
+    .toggle { position: relative; width: 36px; height: 20px; display: inline-block; cursor: pointer; }
+    .toggle input { display: none; }
+    .toggle-slider { position: absolute; inset: 0; background: #ccc; border-radius: 20px; transition: 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    /* Form inputs */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .form-group label .req { color: var(--error); }
+    .form-input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 12px; outline: none; transition: border 0.15s; background: var(--white); }
+    .form-input:focus { border-color: var(--accent); }
+    .form-input.error { border-color: var(--error); }
+    textarea.form-input { height: 80px; padding: 8px 10px; resize: vertical; }
+    select.form-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23969C99'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 16px; padding-right: 28px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .form-hint { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .form-error { font-size: 10px; color: var(--error); margin-top: 2px; }
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .checkbox-label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); transition: all 0.15s; }
+    .checkbox-label:hover { border-color: var(--accent); }
+    .checkbox-label.checked { background: var(--accent-light); border-color: var(--accent); }
+    .checkbox-label input { display: none; }
+
+    /* Toolbar */
+    .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .toolbar .search-input { width: 200px; height: 34px; padding: 0 10px 0 30px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 12px; outline: none; background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23969C99' width='14' height='14'%3E%3Cpath d='M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E") no-repeat 8px center; }
+    .toolbar .search-input:focus { border-color: var(--accent); }
+    .toolbar select { height: 34px; padding: 0 28px 0 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 12px; appearance: none; background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23969C99'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right 6px center / 16px; outline: none; cursor: pointer; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--white); border-radius: 12px; box-shadow: var(--shadow-lg); width: 90%; max-width: 640px; max-height: 85vh; display: flex; flex-direction: column; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .modal-header h3 { font-size: 15px; font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); padding: 2px 6px; border-radius: 4px; }
+    .modal-close:hover { background: #f0f0ee; color: var(--text); }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+
+    /* Tabs in modal */
+    .modal-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: -20px -20px 16px; padding: 0 20px; }
+    .modal-tab { padding: 10px 16px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .modal-tab:hover { color: var(--text); }
+    .modal-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    .modal-tab .tab-badge { font-size: 9px; background: var(--accent-light); color: #5a6b0a; padding: 1px 5px; border-radius: 8px; margin-left: 4px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Options editor */
+    .option-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .option-row .form-input { height: 32px; font-size: 11px; }
+    .option-row .move-btns { display: flex; flex-direction: column; gap: 1px; }
+    .option-row .move-btns button { font-size: 9px; padding: 0px 4px; line-height: 1; }
+    .options-bulk { margin-top: 10px; }
+    .options-bulk textarea { font-family: 'Courier New', monospace; font-size: 11px; }
+
+    /* Rule row */
+    .rule-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #f9f9f7; border-radius: 6px; margin-bottom: 6px; font-size: 12px; flex-wrap: wrap; }
+    .rule-row .rule-type { font-weight: 600; }
+    .rule-row .rule-type.show { color: #16a34a; }
+    .rule-row .rule-type.hide { color: var(--error); }
+    .rule-row .rule-values { display: flex; gap: 3px; flex-wrap: wrap; }
+
+    /* Preview */
+    .preview-banner { background: var(--accent-light); border: 1px solid var(--accent); border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; font-size: 12px; color: #5a6b0a; display: flex; align-items: center; gap: 8px; }
+    .preview-form .form-section { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; }
+    .preview-form .section-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; }
+    .preview-form .section-header:hover { background: #fafaf8; }
+    .preview-form .form-section.expanded .section-header { border-left-color: var(--accent); border-bottom: 1px solid var(--border); }
+    .preview-form .section-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+    .preview-form .section-title .icon { font-size: 16px; }
+    .preview-form .section-count { font-size: 10px; color: var(--muted); background: #f0f0ee; padding: 1px 7px; border-radius: 8px; }
+    .preview-form .section-chevron { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+    .preview-form .form-section.expanded .section-chevron { transform: rotate(180deg); }
+    .preview-form .section-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    .preview-form .form-section.expanded .section-body { max-height: 3000px; }
+    .preview-form .section-content { padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .preview-form .field { display: flex; flex-direction: column; }
+    .preview-form .field.hidden { display: none; }
+    .preview-form .field.full-width { grid-column: 1 / -1; }
+    .preview-form .field label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .preview-form .field label .req { color: var(--error); }
+    .preview-form .field label .unit { color: var(--muted); font-weight: 400; }
+    .preview-form .field input, .preview-form .field select, .preview-form .field textarea { height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 12px; outline: none; }
+    .preview-form .field textarea { height: 60px; padding: 8px 10px; resize: vertical; }
+    .preview-form .field select { appearance: none; background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23969C99'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right 6px center / 16px; padding-right: 28px; }
+    .preview-form .field .field-note { font-size: 10px; color: var(--muted); font-style: italic; margin-top: 2px; }
+    .preview-form .type-model-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: var(--white); padding: 16px 18px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; }
+
+    /* Export/Import */
+    .export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .json-preview { background: #f5f5f3; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: 'Courier New', monospace; font-size: 10px; max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+    .drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 30px; text-align: center; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .drop-zone:hover { border-color: var(--accent); background: var(--accent-light); }
+
+    /* Toast */
+    .toast { position: fixed; bottom: 20px; right: 20px; background: var(--sidebar); color: var(--white); padding: 12px 20px; border-radius: 8px; font-size: 13px; z-index: 400; transform: translateY(20px); opacity: 0; transition: all 0.3s; pointer-events: none; max-width: 380px; }
+    .toast.active { transform: translateY(0); opacity: 1; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty-state .icon { font-size: 36px; margin-bottom: 8px; }
+    .empty-state p { font-size: 13px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+    @media (max-width: 900px) {
+      .sidebar { width: 56px; }
+      .nav-item span, .nav-item .nav-badge { display: none; }
+      .nav-item { padding: 10px 0; justify-content: center; }
+      .main-content { padding: 16px; }
+      .export-grid { grid-template-columns: 1fr; }
+      .preview-form .section-content { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">S</div>
+    <div class="logo-text">STALEKS <span>Конфигуратор — Администрирование</span></div>
+  </div>
+</div>
+
+<div class="app-layout">
+  <nav class="sidebar" id="sidebar"></nav>
+  <main class="main-content" id="main-content"></main>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================================
+// DEFAULT DATA (from prototype/configurator.html)
+// ============================================================================
+
+function getDefaults() {
+  return {
+    doorTypes: [
+      { code: 'technical', label: 'Техническая', shortLabel: 'Техн.', enabled: true },
+      { code: 'finish', label: 'С отделкой', shortLabel: 'Отд.', enabled: true },
+      { code: 'complex', label: 'Сложная', shortLabel: 'Сложн.', enabled: false },
+    ],
+    models: {
+      technical: [
+        { code: 'tech_standard', label: 'Техническая', shortLabel: 'Техн.', noExterior: false },
+        { code: 'fire_ei30', label: 'Противопожарная Ei-30', shortLabel: 'Ei-30', noExterior: false },
+        { code: 'fire_ei60', label: 'Противопожарная Ei-60', shortLabel: 'Ei-60', noExterior: false },
+        { code: 'fire_ei90', label: 'Противопожарная Ei-90', shortLabel: 'Ei-90', noExterior: false },
+        { code: 'premium', label: 'Премиум (металл с двух сторон)', shortLabel: 'Премиум', noExterior: false },
+      ],
+      finish: [
+        { code: 'galant', label: 'Галант (без нар. отделки)', shortLabel: 'Галант', noExterior: true },
+        { code: 'modena', label: 'Модена (без нар. отделки)', shortLabel: 'Модена', noExterior: true },
+        { code: 'elite', label: 'Элит', shortLabel: 'Элит', noExterior: false },
+        { code: 'venezia', label: 'Венеция', shortLabel: 'Венеция', noExterior: false },
+        { code: 'palermo', label: 'Палермо', shortLabel: 'Палермо', noExterior: false },
+        { code: 'vinorit', label: 'Винорит', shortLabel: 'Винорит', noExterior: false },
+      ],
+    },
+    groups: [
+      { code: 'dimensions', label: 'Размеры', icon: '&#128207;', applicability: [], modelApplicability: [] },
+      { code: 'construction', label: 'Конструктив', icon: '&#128295;', applicability: [], modelApplicability: [] },
+      { code: 'glass_transom', label: 'Стеклопакет и фрамуга', icon: '&#129526;', applicability: [], modelApplicability: [] },
+      { code: 'tech_specific', label: 'Технические параметры', icon: '&#9881;', applicability: ['technical'], modelApplicability: [] },
+      { code: 'finish_exterior', label: 'Наружная отделка', icon: '&#127912;', applicability: ['finish'], modelApplicability: [] },
+      { code: 'finish_interior', label: 'Внутренняя отделка', icon: '&#127912;', applicability: ['finish'], modelApplicability: [] },
+      { code: 'hardware_apartment', label: 'Фурнитура', icon: '&#128273;', applicability: ['finish'], modelApplicability: [] },
+      { code: 'marking', label: 'Маркировка', icon: '&#127991;', applicability: [], modelApplicability: [] },
+      { code: 'notes', label: 'Примечание', icon: '&#128221;', applicability: [], modelApplicability: [] },
+    ],
+    fields: [
+      { code: 'height_block', label: 'Высота блока', type: 'number', group: 'dimensions', unit: 'мм', required: true, placeholder: '2050', fullWidth: false, note: '', applicability: [], sortOrder: 10, options: [], rules: [] },
+      { code: 'width_block', label: 'Ширина блока', type: 'number', group: 'dimensions', unit: 'мм', required: true, placeholder: '860', fullWidth: false, note: '', applicability: [], sortOrder: 20, options: [], rules: [] },
+      { code: 'leaf_count', label: 'Кол-во створок', type: 'select', group: 'dimensions', unit: '', required: true, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 30, options: [{ value: '1', label: '1 створка' }, { value: '2', label: '2 створки' }], rules: [] },
+      { code: 'leaves_identical', label: 'Створки одинаковые', type: 'select', group: 'dimensions', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 40, options: [{ value: 'yes', label: 'Да' }, { value: 'no', label: 'Нет' }], rules: [{ dependsOn: 'leaf_count', values: ['2'], rule: 'show_when' }] },
+      { code: 'active_leaf_width', label: 'Ширина активной створки', type: 'number', group: 'dimensions', unit: 'мм', required: false, placeholder: 'мм', fullWidth: false, note: '', applicability: [], sortOrder: 50, options: [], rules: [{ dependsOn: 'leaf_count', values: ['2'], rule: 'show_when' }, { dependsOn: 'leaves_identical', values: ['no'], rule: 'show_when' }] },
+      { code: 'quantity', label: 'Кол-во дверей', type: 'number', group: 'dimensions', unit: '', required: true, placeholder: '1', fullWidth: false, note: '', applicability: [], sortOrder: 60, options: [], rules: [] },
+
+      { code: 'opening', label: 'Открывание', type: 'select', group: 'construction', unit: '', required: true, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 10, options: [{ value: 'right', label: 'Правое' }, { value: 'left', label: 'Левое' }, { value: 'other', label: 'Другое' }], rules: [] },
+      { code: 'opening_scheme', label: 'Схема открывания', type: 'select', group: 'construction', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 20, options: 'АБКЛДСFE'.split('').map(v => ({ value: v, label: v })), rules: [{ dependsOn: 'opening', values: ['other'], rule: 'show_when' }] },
+      { code: 'threshold', label: 'Порог', type: 'select', group: 'construction', unit: '', required: true, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 30, options: [{ value: 'standard_55', label: 'Стандарт 55мм' }, { value: 'lowered_30', label: 'Заниженный 30мм' }, { value: 'lowered_16', label: 'Заниженный 16мм' }, { value: 'none', label: 'Без порога' }, { value: 'retractable', label: 'Выпадающий' }, { value: 'brush', label: 'Щетка с резиновой рейкой' }], rules: [] },
+      { code: 'metal_trim', label: 'Наличник (металл)', type: 'select', group: 'construction', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 40, options: [{ value: 'with', label: 'С наличником' }, { value: 'without', label: 'Без наличника' }, { value: 'other', label: 'Другое' }], rules: [] },
+      { code: 'trim_selection', label: 'Выбор наличника', type: 'select', group: 'construction', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 50, options: [{ value: 'no_lock_side', label: 'Замочная сторона без нал.' }, { value: 'no_hinge_side', label: 'Шарнирная сторона без нал.' }, { value: 'no_top', label: 'Верх без нал.' }, { value: 'only_top', label: 'Нал. только сверху' }], rules: [{ dependsOn: 'metal_trim', values: ['other'], rule: 'show_when' }] },
+      { code: 'bolt_lock', label: 'Задвижка', type: 'select', group: 'construction', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 60, options: [{ value: 'standard', label: 'Стандарт' }, { value: 'end', label: 'Торцевая' }, { value: 'outside', label: 'С наружной стороны' }], rules: [{ dependsOn: 'leaf_count', values: ['2'], rule: 'show_when' }] },
+      { code: 'seal_contours', label: 'Контуры уплотнения', type: 'select', group: 'construction', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 70, options: [{ value: '2', label: '2 контура' }, { value: '3', label: '3 контура' }], rules: [] },
+
+      { code: 'has_glass', label: 'Стеклопакет', type: 'select', group: 'glass_transom', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 10, options: [{ value: 'no', label: 'Нет' }, { value: 'yes', label: 'Есть' }], rules: [] },
+      { code: 'glass_height', label: 'Высота стеклопакета', type: 'number', group: 'glass_transom', unit: 'мм', required: false, placeholder: 'мм', fullWidth: false, note: '', applicability: [], sortOrder: 20, options: [], rules: [{ dependsOn: 'has_glass', values: ['yes'], rule: 'show_when' }] },
+      { code: 'glass_width', label: 'Ширина стеклопакета', type: 'number', group: 'glass_transom', unit: 'мм', required: false, placeholder: 'мм', fullWidth: false, note: '', applicability: [], sortOrder: 30, options: [], rules: [{ dependsOn: 'has_glass', values: ['yes'], rule: 'show_when' }] },
+      { code: 'transom', label: 'Фрамуга', type: 'select', group: 'glass_transom', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 40, options: [{ value: 'none', label: 'Нет' }, { value: 'solid', label: 'Глухая' }, { value: 'glazed', label: 'Остекленная' }, { value: 'false_transom', label: 'Фальш-фрамуга' }, { value: 'solid_false', label: 'Глухая фальш-фрамуга' }], rules: [] },
+      { code: 'hinges', label: 'Петли', type: 'select', group: 'glass_transom', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 50, options: [{ value: '2', label: '2 петли' }, { value: '3', label: '3 петли' }, { value: '2_hidden', label: '2 скрытые' }, { value: '3_hidden', label: '3 скрытые' }], rules: [] },
+
+      { code: 'metal_color', label: 'Цвет металла', type: 'text', group: 'tech_specific', unit: '', required: false, placeholder: 'RAL 7024', fullWidth: false, note: '', applicability: ['technical'], sortOrder: 10, options: [], rules: [] },
+      { code: 'lock_tech', label: 'Замок', type: 'select', group: 'tech_specific', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['technical'], sortOrder: 20, options: [{ value: 'doorlock', label: 'DoorLock' }, { value: 'kale152', label: 'Kale 152' }, { value: 'iseo', label: 'ISEO' }, { value: 'iseo_panic_1', label: 'ISEO антипаника 1 ств' }, { value: 'iseo_panic_2', label: 'ISEO антипаника 2 ств' }], rules: [] },
+      { code: 'hardware_tech', label: 'Фурнитура', type: 'select', group: 'tech_specific', unit: '', required: false, placeholder: '', fullWidth: false, note: 'Список уточняется', applicability: ['technical'], sortOrder: 30, options: [{ value: 'standard', label: 'Стандартная' }, { value: 'reinforced', label: 'Усиленная' }], rules: [] },
+      { code: 'vent_grille', label: 'Вент решетка', type: 'text', group: 'tech_specific', unit: '', required: false, placeholder: 'Размер / тип', fullWidth: false, note: '', applicability: ['technical'], sortOrder: 40, options: [], rules: [] },
+      { code: 'extra_hinge', label: 'Доп. шарнир', type: 'select', group: 'tech_specific', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['technical'], sortOrder: 50, options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }], rules: [] },
+      { code: 'door_closer', label: 'Доводчик', type: 'select', group: 'tech_specific', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['technical'], sortOrder: 60, options: [{ value: '1leaf', label: 'На 1 створку' }, { value: '2leaf', label: 'На 2 створки' }], rules: [] },
+      { code: 'rigid_packaging_tech', label: 'Жесткая упаковка', type: 'select', group: 'tech_specific', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['technical'], sortOrder: 70, options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }], rules: [] },
+
+      { code: 'ext_overlay', label: 'Наружная накладка', type: 'select', group: 'finish_exterior', unit: '', required: true, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 10, options: [{ value: 'none', label: 'Нет' }, { value: 'pvh', label: 'ПВХ' }, { value: 'paint', label: 'Покраска' }, { value: 'veneer_paint', label: 'Шпон + покраска' }, { value: 'veneer_tint', label: 'Шпон + тонировка' }], rules: [] },
+      { code: 'ext_overlay_thickness', label: 'Толщина нар. накладки', type: 'select', group: 'finish_exterior', unit: 'мм', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 20, options: [{ value: '16', label: '16' }, { value: '12', label: '12' }, { value: '10', label: '10' }], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'ext_pattern', label: 'Рисунок нар. накладки', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Название рисунка', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 30, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'ext_color', label: 'Цвет нар. накладки', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Цвет / код', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 40, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'mdf_insert', label: 'Вставка МДФ', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Описание', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 50, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'metal_insert', label: 'Вставка металл', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Описание', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 60, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'corona', label: 'Корона', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Описание', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 70, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'patina_ext', label: 'Патина', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Цвет / тип', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 80, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'mdf_trim', label: 'Наличник МДФ', type: 'select', group: 'finish_exterior', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 90, options: [{ value: 'none', label: 'Нет' }, { value: 'full', label: 'Есть (полный)' }, { value: 'vertical_only', label: 'Только вертикальные' }, { value: 'no_lock_side', label: 'Замочная без нал.' }, { value: 'no_hinge_side', label: 'Шарнирная без нал.' }], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'trim_color', label: 'Цвет наличников', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Цвет', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 100, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+      { code: 'trim_description', label: 'Описание наличников', type: 'text', group: 'finish_exterior', unit: '', required: false, placeholder: 'Доп. информация', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 110, options: [], rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+
+      { code: 'int_overlay', label: 'Внутренняя накладка', type: 'select', group: 'finish_interior', unit: '', required: true, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 10, options: [{ value: 'pvh', label: 'ПВХ' }, { value: 'paint', label: 'Покраска' }, { value: 'veneer_paint', label: 'Шпон + покраска' }, { value: 'veneer_tint', label: 'Шпон + тонировка' }], rules: [] },
+      { code: 'int_overlay_thickness', label: 'Толщина вн. накладки', type: 'select', group: 'finish_interior', unit: 'мм', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 20, options: [{ value: '16', label: '16' }, { value: '12', label: '12' }, { value: '10', label: '10' }, { value: '8', label: '8' }], rules: [] },
+      { code: 'int_pattern', label: 'Рисунок вн. накладки', type: 'text', group: 'finish_interior', unit: '', required: false, placeholder: 'Название рисунка', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 30, options: [], rules: [] },
+      { code: 'int_color', label: 'Цвет вн. накладки', type: 'text', group: 'finish_interior', unit: '', required: false, placeholder: 'Цвет / код', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 40, options: [], rules: [] },
+      { code: 'patina_int', label: 'Патина', type: 'text', group: 'finish_interior', unit: '', required: false, placeholder: 'Цвет / тип', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 50, options: [], rules: [] },
+
+      { code: 'lock_apt', label: 'Замок', type: 'select', group: 'hardware_apartment', unit: '', required: true, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 10, options: [{ value: 'kale_252_257', label: 'Kale 252+257' }, { value: 'guardian_full', label: 'Guardian 32.11+30.01' }, { value: 'cisa', label: 'Cisa' }, { value: 'kale_252', label: 'Kale 252' }, { value: 'guardian_32', label: 'Guardian 32.11' }, { value: 'other', label: 'Другое' }], rules: [] },
+      { code: 'lock_name_custom', label: 'Название замка', type: 'text', group: 'hardware_apartment', unit: '', required: false, placeholder: 'Укажите замок', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 20, options: [], rules: [{ dependsOn: 'lock_apt', values: ['other'], rule: 'show_when' }] },
+      { code: 'cylinder', label: 'Цилиндр', type: 'select', group: 'hardware_apartment', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 30, options: [{ value: 'key_key', label: 'Ключ-ключ' }, { value: 'key_knob', label: 'Ключ-поворотник' }], rules: [] },
+      { code: 'night_latch', label: 'Ночник', type: 'select', group: 'hardware_apartment', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 40, options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }], rules: [] },
+      { code: 'handle_apt', label: 'Фурнитура / Ручка', type: 'select', group: 'hardware_apartment', unit: '', required: false, placeholder: '', fullWidth: false, note: 'Список уточняется', applicability: ['finish'], sortOrder: 50, options: [{ value: 'lever', label: 'Нажимная ручка' }, { value: 'pull', label: 'Ручка-скоба' }, { value: 'knob', label: 'Кноб' }], rules: [] },
+      { code: 'peephole', label: 'Глазок', type: 'select', group: 'hardware_apartment', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 60, options: [{ value: 'black', label: 'Черный' }, { value: 'chrome', label: 'Хром' }, { value: 'gold', label: 'Золото' }], rules: [] },
+      { code: 'rigid_packaging_apt', label: 'Жесткая упаковка', type: 'select', group: 'hardware_apartment', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: ['finish'], sortOrder: 70, options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }], rules: [] },
+
+      { code: 'marking_type', label: 'Тип маркировки', type: 'select', group: 'marking', unit: '', required: false, placeholder: '', fullWidth: false, note: '', applicability: [], sortOrder: 10, options: [{ value: 'none', label: 'Без маркировки' }, { value: 'auto', label: 'Авто (префикс + номер)' }, { value: 'manual', label: 'Вручную' }], rules: [] },
+      { code: 'marking_prefix', label: 'Префикс', type: 'text', group: 'marking', unit: '', required: false, placeholder: 'DZ', fullWidth: false, note: '', applicability: [], sortOrder: 20, options: [], rules: [{ dependsOn: 'marking_type', values: ['auto'], rule: 'show_when' }] },
+      { code: 'marking_start', label: 'Начальный номер', type: 'number', group: 'marking', unit: '', required: false, placeholder: '1', fullWidth: false, note: '', applicability: [], sortOrder: 30, options: [], rules: [{ dependsOn: 'marking_type', values: ['auto'], rule: 'show_when' }] },
+      { code: 'marking_manual', label: 'Маркировка (через запятую)', type: 'text', group: 'marking', unit: '', required: false, placeholder: 'A1, A2, A3', fullWidth: true, note: '', applicability: [], sortOrder: 40, options: [], rules: [{ dependsOn: 'marking_type', values: ['manual'], rule: 'show_when' }] },
+
+      { code: 'position_note', label: 'Примечание к позиции', type: 'textarea', group: 'notes', unit: '', required: false, placeholder: 'Любые дополнительные комментарии...', fullWidth: true, note: '', applicability: [], sortOrder: 10, options: [], rules: [] },
+    ],
+  };
+}
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+const S = {
+  activeTab: 'types',
+  doorTypes: [],
+  models: {},
+  groups: [],
+  fields: [],
+  // UI state
+  modelsFilter: null,
+  fieldsFilterGroup: '',
+  fieldsFilterType: '',
+  fieldsSearch: '',
+  previewType: null,
+  previewModel: null,
+  previewValues: {},
+  previewExpanded: {},
+};
+
+const STORAGE_KEY = 'staleks_configurator_admin';
+const CODE_RE = /^[a-z][a-z0-9_]*$/;
+
+// Transliteration: Russian → Latin slug for auto-code generation
+const TRANSLIT_MAP = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
+function transliterate(str) {
+  return str.toLowerCase().split('').map(c => TRANSLIT_MAP[c] !== undefined ? TRANSLIT_MAP[c] : c).join('')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').replace(/_+/g, '_').substring(0, 40);
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      S.doorTypes = d.doorTypes || [];
+      S.models = d.models || {};
+      S.groups = d.groups || [];
+      S.fields = d.fields || [];
+      // Migrate: add modelApplicability to groups if missing
+      S.groups.forEach(g => { if (!g.modelApplicability) g.modelApplicability = []; });
+      return;
+    }
+  } catch(e) { console.warn('State load failed:', e); }
+  resetToDefaults();
+}
+
+function resetToDefaults() {
+  const d = getDefaults();
+  S.doorTypes = d.doorTypes;
+  S.models = d.models;
+  S.groups = d.groups;
+  S.fields = d.fields;
+  persist();
+}
+
+function persist() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    doorTypes: S.doorTypes, models: S.models, groups: S.groups, fields: S.fields,
+  }));
+}
+
+// ============================================================================
+// CORE UI
+// ============================================================================
+
+const NAV_ITEMS = [
+  { code: 'types', label: 'Типы дверей', icon: '&#128682;' },
+  { code: 'models', label: 'Модели', icon: '&#9638;' },
+  { code: 'groups', label: 'Секции', icon: '&#9776;' },
+  { code: 'fields', label: 'Поля', icon: '&#9998;' },
+  { code: 'rules', label: 'Правила видимости', icon: '&#128065;' },
+  { code: 'preview', label: 'Превью', icon: '&#9654;' },
+  { code: 'export', label: 'Экспорт / Импорт', icon: '&#128229;' },
+];
+
+function navCount(code) {
+  switch(code) {
+    case 'types': return S.doorTypes.length;
+    case 'models': return Object.values(S.models).reduce((s,a) => s + a.length, 0);
+    case 'groups': return S.groups.length;
+    case 'fields': return S.fields.length;
+    case 'rules': return S.fields.reduce((s,f) => s + (f.rules?.length || 0), 0);
+    default: return null;
+  }
+}
+
+function renderSidebar() {
+  const el = document.getElementById('sidebar');
+  el.innerHTML = NAV_ITEMS.map((n, i) => {
+    const cnt = navCount(n.code);
+    const badge = cnt !== null ? `<span class="nav-badge">${cnt}</span>` : '';
+    const sep = (i === 4 || i === 5) ? '<div class="nav-sep"></div>' : '';
+    return `${sep}<div class="nav-item${S.activeTab === n.code ? ' active' : ''}" onclick="navigate('${n.code}')">
+      <span class="nav-icon">${n.icon}</span><span>${n.label}</span>${badge}
+    </div>`;
+  }).join('');
+}
+
+function navigate(tab) {
+  S.activeTab = tab;
+  renderSidebar();
+  renderContent();
+}
+
+function renderContent() {
+  const c = document.getElementById('main-content');
+  switch(S.activeTab) {
+    case 'types': renderTypesPage(c); break;
+    case 'models': renderModelsPage(c); break;
+    case 'groups': renderGroupsPage(c); break;
+    case 'fields': renderFieldsPage(c); break;
+    case 'rules': renderRulesPage(c); break;
+    case 'preview': renderPreviewPage(c); break;
+    case 'export': renderExportPage(c); break;
+  }
+}
+
+// Toast
+let toastTimer;
+function showToast(msg, dur = 2500) {
+  const el = document.getElementById('toast');
+  el.innerHTML = msg;
+  el.classList.add('active');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('active'), dur);
+}
+
+// Modal
+function openModal(html) {
+  document.getElementById('modal').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+function confirmModal(msg, onConfirm) {
+  openModal(`
+    <div class="modal-header"><h3>Подтверждение</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body"><p style="font-size:13px">${msg}</p></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-danger" id="confirm-btn">Удалить</button>
+    </div>
+  `);
+  document.getElementById('confirm-btn').onclick = () => { closeModal(); onConfirm(); };
+}
+
+// Field type badge
+function typeBadge(t) {
+  const m = { select: 'badge-lime', text: 'badge-blue', number: 'badge-purple', textarea: 'badge-gray', boolean: 'badge-orange', multiselect: 'badge-teal' };
+  return `<span class="badge ${m[t] || 'badge-gray'}">${t}</span>`;
+}
+
+// Applicability badges
+function appBadges(app) {
+  if (!app || app.length === 0) return '<span class="badge badge-gray">Все</span>';
+  return app.map(a => {
+    const dt = S.doorTypes.find(t => t.code === a);
+    return `<span class="badge badge-lime">${dt ? dt.shortLabel : a}</span>`;
+  }).join(' ');
+}
+
+function modelAppBadges(mapp) {
+  if (!mapp || mapp.length === 0) return '<span class="badge badge-gray">Все</span>';
+  return mapp.map(code => {
+    let label = code;
+    for (const tc of Object.keys(S.models)) {
+      const m = (S.models[tc]||[]).find(x => x.code === code);
+      if (m) { label = m.shortLabel; break; }
+    }
+    return `<span class="badge badge-blue">${label}</span>`;
+  }).join(' ');
+}
+
+function getAllModelsForType(typeCode) {
+  if (!typeCode) {
+    // Return all models across all types
+    const all = [];
+    Object.keys(S.models).forEach(tc => { (S.models[tc]||[]).forEach(m => all.push({ ...m, typeCode: tc })); });
+    return all;
+  }
+  return (S.models[typeCode]||[]).map(m => ({ ...m, typeCode }));
+}
+
+// ============================================================================
+// TYPES PAGE
+// ============================================================================
+
+function renderTypesPage(c) {
+  c.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Типы дверей</div><div class="page-subtitle">Категории дверей для выбора менеджером</div></div>
+      <button class="btn btn-primary" onclick="openTypeEditor(null)">+ Добавить тип</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="data-table">
+        <thead><tr><th>Код</th><th>Название</th><th>Сокращение</th><th>Моделей</th><th>Активен</th><th style="text-align:right">Действия</th></tr></thead>
+        <tbody>${S.doorTypes.map((t, i) => `
+          <tr>
+            <td class="code">${t.code}</td>
+            <td>${t.label}</td>
+            <td>${t.shortLabel}</td>
+            <td>${(S.models[t.code] || []).length}</td>
+            <td><label class="toggle"><input type="checkbox" ${t.enabled ? 'checked' : ''} onchange="toggleType('${t.code}')"><span class="toggle-slider"></span></label></td>
+            <td class="actions">
+              <button class="btn-icon" onclick="openTypeEditor('${t.code}')" title="Редактировать">&#9998;</button>
+              <button class="btn-icon danger" onclick="deleteType('${t.code}')" title="Удалить">&#128465;</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${S.doorTypes.length === 0 ? '<div class="empty-state"><div class="icon">&#128682;</div><p>Нет типов дверей</p></div>' : ''}
+    </div>`;
+}
+
+function toggleType(code) {
+  const t = S.doorTypes.find(x => x.code === code);
+  if (t) { t.enabled = !t.enabled; persist(); renderSidebar(); }
+}
+
+function openTypeEditor(code) {
+  const t = code ? S.doorTypes.find(x => x.code === code) : null;
+  const isNew = !t;
+  openModal(`
+    <div class="modal-header"><h3>${isNew ? 'Новый тип' : 'Редактировать тип'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Код <span class="req">*</span></label><input class="form-input" id="ed-type-code" value="${t ? t.code : ''}" ${t ? 'disabled' : ''} placeholder="technical"><div class="form-hint">Латиница, snake_case</div></div>
+      <div class="form-row">
+        <div class="form-group"><label>Название <span class="req">*</span></label><input class="form-input" id="ed-type-label" value="${t ? t.label : ''}" placeholder="Техническая"></div>
+        <div class="form-group"><label>Сокращение <span class="req">*</span></label><input class="form-input" id="ed-type-short" value="${t ? t.shortLabel : ''}" placeholder="Техн."></div>
+      </div>
+      <div class="form-group"><label>Активен</label><label class="toggle" style="margin-top:4px"><input type="checkbox" id="ed-type-enabled" ${!t || t.enabled ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveType(${isNew ? 'true' : 'false'}, '${code || ''}')">Сохранить</button>
+    </div>
+  `);
+}
+
+function saveType(isNew, oldCode) {
+  const code = document.getElementById('ed-type-code').value.trim();
+  const label = document.getElementById('ed-type-label').value.trim();
+  const shortLabel = document.getElementById('ed-type-short').value.trim();
+  const enabled = document.getElementById('ed-type-enabled').checked;
+  if (!code || !label || !shortLabel) return showToast('Заполните все обязательные поля');
+  if (!CODE_RE.test(code)) return showToast('Код: латиница, цифры, подчёркивание');
+  if (isNew && S.doorTypes.find(t => t.code === code)) return showToast('Тип с таким кодом уже существует');
+  if (isNew) {
+    S.doorTypes.push({ code, label, shortLabel, enabled });
+    S.models[code] = [];
+  } else {
+    const t = S.doorTypes.find(x => x.code === oldCode);
+    t.label = label; t.shortLabel = shortLabel; t.enabled = enabled;
+  }
+  persist(); closeModal(); renderSidebar(); renderContent();
+  showToast(isNew ? 'Тип добавлен' : 'Тип обновлён');
+}
+
+function deleteType(code) {
+  const mc = (S.models[code] || []).length;
+  const fc = S.fields.filter(f => f.applicability.includes(code)).length;
+  confirmModal(`Удалить тип "<b>${code}</b>"?${mc ? `<br>Связано моделей: ${mc}` : ''}${fc ? `<br>Полей с привязкой: ${fc}` : ''}`, () => {
+    S.doorTypes = S.doorTypes.filter(t => t.code !== code);
+    delete S.models[code];
+    persist(); renderSidebar(); renderContent();
+    showToast('Тип удалён');
+  });
+}
+
+// ============================================================================
+// MODELS PAGE
+// ============================================================================
+
+function renderModelsPage(c) {
+  const types = S.doorTypes.filter(t => t.enabled);
+  if (!S.modelsFilter && types.length) S.modelsFilter = types[0].code;
+  const models = S.models[S.modelsFilter] || [];
+  c.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Модели</div><div class="page-subtitle">Модели дверей по типам</div></div>
+      <button class="btn btn-primary" onclick="openModelEditor(null)" ${!S.modelsFilter ? 'disabled' : ''}>+ Добавить модель</button>
+    </div>
+    <div class="toolbar">
+      <select onchange="S.modelsFilter=this.value;renderContent()">
+        ${types.map(t => `<option value="${t.code}" ${S.modelsFilter===t.code?'selected':''}>${t.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="data-table">
+        <thead><tr><th>Код</th><th>Название</th><th>Сокращение</th><th>Без нар. отделки</th><th style="text-align:right">Действия</th></tr></thead>
+        <tbody>${models.map((m, i) => `
+          <tr>
+            <td class="code">${m.code}</td>
+            <td>${m.label}</td>
+            <td>${m.shortLabel}</td>
+            <td>${m.noExterior ? '<span class="badge badge-orange">Да</span>' : ''}</td>
+            <td class="actions">
+              <button class="btn-icon" onclick="duplicateModel('${m.code}')" title="Дублировать">&#128203;</button>
+              <button class="btn-icon" onclick="openModelEditor('${m.code}')" title="Редактировать">&#9998;</button>
+              <button class="btn-icon danger" onclick="deleteModel('${m.code}')" title="Удалить">&#128465;</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      ${models.length === 0 ? '<div class="empty-state"><div class="icon">&#9638;</div><p>Нет моделей для этого типа</p></div>' : ''}
+    </div>`;
+}
+
+function openModelEditor(code) {
+  const typeCode = S.modelsFilter;
+  const models = S.models[typeCode] || [];
+  const m = code ? models.find(x => x.code === code) : null;
+  const isNew = !m;
+  openModal(`
+    <div class="modal-header"><h3>${isNew ? 'Новая модель' : 'Редактировать модель'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Тип</label><input class="form-input" value="${S.doorTypes.find(t=>t.code===typeCode)?.label||typeCode}" disabled></div>
+      <div class="form-group"><label>Код <span class="req">*</span></label><input class="form-input" id="ed-model-code" value="${m?m.code:''}" ${m?'disabled':''} placeholder="fire_ei30"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Название <span class="req">*</span></label><input class="form-input" id="ed-model-label" value="${m?m.label:''}" placeholder="Противопожарная Ei-30"></div>
+        <div class="form-group"><label>Сокращение <span class="req">*</span></label><input class="form-input" id="ed-model-short" value="${m?m.shortLabel:''}" placeholder="Ei-30"></div>
+      </div>
+      <div class="form-group"><label><label class="toggle" style="margin-right:6px"><input type="checkbox" id="ed-model-noext" ${m?.noExterior?'checked':''}><span class="toggle-slider"></span></label> Без наружной отделки</label></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveModel(${isNew?'true':'false'},'${typeCode}','${code||''}')">Сохранить</button>
+    </div>
+  `);
+}
+
+function saveModel(isNew, typeCode, oldCode) {
+  const code = document.getElementById('ed-model-code').value.trim();
+  const label = document.getElementById('ed-model-label').value.trim();
+  const shortLabel = document.getElementById('ed-model-short').value.trim();
+  const noExterior = document.getElementById('ed-model-noext').checked;
+  if (!code || !label || !shortLabel) return showToast('Заполните все поля');
+  if (!CODE_RE.test(code)) return showToast('Код: латиница, цифры, подчёркивание');
+  if (!S.models[typeCode]) S.models[typeCode] = [];
+  const arr = S.models[typeCode];
+  if (isNew && arr.find(m => m.code === code)) return showToast('Модель с таким кодом уже существует');
+  if (isNew) {
+    arr.push({ code, label, shortLabel, noExterior });
+  } else {
+    const m = arr.find(x => x.code === oldCode);
+    m.label = label; m.shortLabel = shortLabel; m.noExterior = noExterior;
+  }
+  persist(); closeModal(); renderSidebar(); renderContent();
+  showToast(isNew ? 'Модель добавлена' : 'Модель обновлена');
+}
+
+function duplicateModel(code) {
+  const typeCode = S.modelsFilter;
+  const arr = S.models[typeCode] || [];
+  const src = arr.find(m => m.code === code);
+  if (!src) return;
+  let newCode = src.code + '_copy';
+  let n = 1;
+  while (arr.find(m => m.code === newCode)) { newCode = src.code + '_copy' + (++n); }
+  const clone = JSON.parse(JSON.stringify(src));
+  clone.code = newCode;
+  clone.label = src.label + ' (копия)';
+  clone.shortLabel = src.shortLabel + '*';
+  arr.push(clone);
+  persist(); renderSidebar(); renderContent();
+  showToast('Модель дублирована — отредактируйте копию');
+  // Open editor for the new model so user can change values
+  setTimeout(() => openModelEditor(newCode), 300);
+}
+
+function deleteModel(code) {
+  confirmModal(`Удалить модель "<b>${code}</b>"?`, () => {
+    S.models[S.modelsFilter] = (S.models[S.modelsFilter]||[]).filter(m => m.code !== code);
+    persist(); renderSidebar(); renderContent();
+    showToast('Модель удалена');
+  });
+}
+
+// ============================================================================
+// GROUPS PAGE
+// ============================================================================
+
+function renderGroupsPage(c) {
+  c.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Секции конфигуратора</div><div class="page-subtitle">Accordion-группы полей в форме менеджера</div></div>
+      <button class="btn btn-primary" onclick="openGroupEditor(null)">+ Добавить секцию</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="data-table">
+        <thead><tr><th style="width:60px">Порядок</th><th>Иконка</th><th>Код</th><th>Название</th><th>Типы</th><th>Модели</th><th>Полей</th><th style="text-align:right">Действия</th></tr></thead>
+        <tbody>${S.groups.map((g, i) => `
+          <tr>
+            <td>
+              <button class="btn-icon" ${i===0?'disabled':''} onclick="moveGroup(${i},-1)" title="Вверх">&#9650;</button>
+              <button class="btn-icon" ${i===S.groups.length-1?'disabled':''} onclick="moveGroup(${i},1)" title="Вниз">&#9660;</button>
+            </td>
+            <td style="font-size:18px">${g.icon}</td>
+            <td class="code">${g.code}</td>
+            <td>${g.label}</td>
+            <td>${appBadges(g.applicability)}</td>
+            <td>${modelAppBadges(g.modelApplicability)}</td>
+            <td>${S.fields.filter(f=>f.group===g.code).length}</td>
+            <td class="actions">
+              <button class="btn-icon" onclick="openGroupEditor('${g.code}')" title="Редактировать">&#9998;</button>
+              <button class="btn-icon danger" onclick="deleteGroup('${g.code}')" title="Удалить">&#128465;</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function moveGroup(idx, dir) {
+  const ni = idx + dir;
+  if (ni < 0 || ni >= S.groups.length) return;
+  [S.groups[idx], S.groups[ni]] = [S.groups[ni], S.groups[idx]];
+  persist(); renderContent();
+}
+
+function openGroupEditor(code) {
+  const g = code ? S.groups.find(x => x.code === code) : null;
+  const isNew = !g;
+  const icons = ['&#128207;','&#128295;','&#129526;','&#9881;','&#127912;','&#128273;','&#127991;','&#128221;','&#128736;','&#128640;','&#128269;','&#9733;','&#9654;','&#128274;','&#9878;'];
+  openModal(`
+    <div class="modal-header"><h3>${isNew?'Новая секция':'Редактировать секцию'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Код <span class="req">*</span></label><input class="form-input" id="ed-grp-code" value="${g?g.code:''}" ${g?'disabled':''} placeholder="dimensions"></div>
+      <div class="form-group"><label>Название <span class="req">*</span></label><input class="form-input" id="ed-grp-label" value="${g?g.label:''}" placeholder="Размеры"></div>
+      <div class="form-group"><label>Иконка (HTML entity)</label>
+        <input class="form-input" id="ed-grp-icon" value="${g?g.icon.replace(/"/g,'&quot;'):''}" placeholder="&#128207;">
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${icons.map(ic => `<button class="btn btn-sm btn-secondary" onclick="document.getElementById('ed-grp-icon').value='${ic}'">${ic}</button>`).join('')}</div>
+      </div>
+      <div class="form-group"><label>Применимость к типам</label><div class="checkbox-group" id="ed-grp-app">
+        ${S.doorTypes.map(t => `<label class="checkbox-label${g && g.applicability.includes(t.code)?' checked':''}"><input type="checkbox" value="${t.code}" ${g && g.applicability.includes(t.code)?'checked':''} onchange="this.parentElement.classList.toggle('checked');updateGroupModelCheckboxes()">${t.shortLabel}</label>`).join('')}
+      </div><div class="form-hint">Пусто = для всех типов</div></div>
+      <div class="form-group"><label>Применимость к моделям</label><div class="checkbox-group" id="ed-grp-model-app">
+        ${getGroupEditorModels(g).map(m => `<label class="checkbox-label${g && (g.modelApplicability||[]).includes(m.code)?' checked':''}"><input type="checkbox" value="${m.code}" ${g && (g.modelApplicability||[]).includes(m.code)?'checked':''} onchange="this.parentElement.classList.toggle('checked')">${m.shortLabel} <span style="font-size:9px;color:var(--muted)">(${S.doorTypes.find(t=>t.code===m.typeCode)?.shortLabel||m.typeCode})</span></label>`).join('')}
+      </div><div class="form-hint">Пусто = для всех моделей выбранных типов. Если нужно скрыть секцию для конкретной модели — выберите только те модели, где она должна быть.</div></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveGroup(${isNew?'true':'false'},'${code||''}')">Сохранить</button>
+    </div>
+  `);
+}
+
+function getGroupEditorModels(g) {
+  // Show models from selected types (or all if no types checked)
+  const checkedTypes = g ? g.applicability : [];
+  const all = [];
+  const typesToUse = checkedTypes.length ? checkedTypes : S.doorTypes.filter(t => t.enabled).map(t => t.code);
+  typesToUse.forEach(tc => { (S.models[tc]||[]).forEach(m => all.push({ ...m, typeCode: tc })); });
+  return all;
+}
+
+function updateGroupModelCheckboxes() {
+  const checkedTypes = [...document.querySelectorAll('#ed-grp-app input:checked')].map(i => i.value);
+  const typesToUse = checkedTypes.length ? checkedTypes : S.doorTypes.filter(t => t.enabled).map(t => t.code);
+  const modelsContainer = document.getElementById('ed-grp-model-app');
+  if (!modelsContainer) return;
+  // Get currently checked model codes
+  const prevChecked = [...modelsContainer.querySelectorAll('input:checked')].map(i => i.value);
+  // Rebuild model checkboxes
+  const allModels = [];
+  typesToUse.forEach(tc => { (S.models[tc]||[]).forEach(m => allModels.push({ ...m, typeCode: tc })); });
+  modelsContainer.innerHTML = allModels.map(m => {
+    const isChecked = prevChecked.includes(m.code);
+    return `<label class="checkbox-label${isChecked?' checked':''}"><input type="checkbox" value="${m.code}" ${isChecked?'checked':''} onchange="this.parentElement.classList.toggle('checked')">${m.shortLabel} <span style="font-size:9px;color:var(--muted)">(${S.doorTypes.find(t=>t.code===m.typeCode)?.shortLabel||m.typeCode})</span></label>`;
+  }).join('');
+}
+
+function saveGroup(isNew, oldCode) {
+  const code = document.getElementById('ed-grp-code').value.trim();
+  const label = document.getElementById('ed-grp-label').value.trim();
+  const icon = document.getElementById('ed-grp-icon').value.trim() || '&#9632;';
+  const app = [...document.querySelectorAll('#ed-grp-app input:checked')].map(i => i.value);
+  const modelApp = [...document.querySelectorAll('#ed-grp-model-app input:checked')].map(i => i.value);
+  if (!code || !label) return showToast('Заполните код и название');
+  if (!CODE_RE.test(code)) return showToast('Код: латиница, цифры, подчёркивание');
+  if (isNew && S.groups.find(g => g.code === code)) return showToast('Секция с таким кодом уже существует');
+  if (isNew) {
+    S.groups.push({ code, label, icon, applicability: app, modelApplicability: modelApp });
+  } else {
+    const g = S.groups.find(x => x.code === oldCode);
+    g.label = label; g.icon = icon; g.applicability = app; g.modelApplicability = modelApp;
+  }
+  persist(); closeModal(); renderSidebar(); renderContent();
+  showToast(isNew ? 'Секция добавлена' : 'Секция обновлена');
+}
+
+function deleteGroup(code) {
+  const fc = S.fields.filter(f => f.group === code).length;
+  confirmModal(`Удалить секцию "<b>${code}</b>"?${fc ? `<br>В ней полей: ${fc}` : ''}`, () => {
+    S.groups = S.groups.filter(g => g.code !== code);
+    persist(); renderSidebar(); renderContent();
+    showToast('Секция удалена');
+  });
+}
+
+// ============================================================================
+// FIELDS PAGE
+// ============================================================================
+
+function getFilteredFields() {
+  let ff = [...S.fields];
+  if (S.fieldsFilterGroup) ff = ff.filter(f => f.group === S.fieldsFilterGroup);
+  if (S.fieldsFilterType) ff = ff.filter(f => !f.applicability.length || f.applicability.includes(S.fieldsFilterType));
+  if (S.fieldsSearch) {
+    const q = S.fieldsSearch.toLowerCase();
+    ff = ff.filter(f => f.code.includes(q) || f.label.toLowerCase().includes(q));
+  }
+  return ff;
+}
+
+function renderFieldsPage(c) {
+  const ff = getFilteredFields();
+  const grouped = {};
+  S.groups.forEach(g => { grouped[g.code] = []; });
+  ff.forEach(f => {
+    if (!grouped[f.group]) grouped[f.group] = [];
+    grouped[f.group].push(f);
+  });
+  // sort within groups
+  Object.values(grouped).forEach(arr => arr.sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0)));
+
+  let rows = '';
+  S.groups.forEach(g => {
+    const gf = grouped[g.code] || [];
+    if (gf.length === 0 && (S.fieldsFilterGroup || S.fieldsSearch)) return;
+    rows += `<tr class="group-divider"><td colspan="8">${g.icon} ${g.label} (${gf.length})</td></tr>`;
+    gf.forEach((f, i) => {
+      rows += `<tr>
+        <td style="width:50px">
+          <button class="btn-icon" style="font-size:10px" ${i===0?'disabled':''} onclick="moveField('${f.code}','${g.code}',-1)">&#9650;</button>
+          <button class="btn-icon" style="font-size:10px" ${i===gf.length-1?'disabled':''} onclick="moveField('${f.code}','${g.code}',1)">&#9660;</button>
+        </td>
+        <td class="code">${f.code}</td>
+        <td>${f.label}</td>
+        <td>${typeBadge(f.type)}</td>
+        <td>${f.required ? '<span style="color:var(--error);font-weight:700">*</span>' : ''}</td>
+        <td>${appBadges(f.applicability)}</td>
+        <td>${f.rules?.length ? `<span class="badge badge-blue">${f.rules.length} пр.</span>` : ''}${f.options?.length ? ` <span class="badge badge-gray">${f.options.length} опц.</span>` : ''}</td>
+        <td class="actions">
+          <button class="btn-icon" onclick="openFieldEditor('${f.code}')">&#9998;</button>
+          <button class="btn-icon danger" onclick="deleteField('${f.code}')">&#128465;</button>
+        </td>
+      </tr>`;
+    });
+  });
+
+  c.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Поля конфигуратора</div><div class="page-subtitle">Все поля, доступные менеджеру при заполнении спецификации</div></div>
+      <button class="btn btn-primary" onclick="openFieldEditor(null)">+ Добавить поле</button>
+    </div>
+    <div class="toolbar">
+      <input class="search-input" placeholder="Поиск по коду или названию..." value="${S.fieldsSearch}" oninput="S.fieldsSearch=this.value;renderContent()">
+      <select onchange="S.fieldsFilterGroup=this.value;renderContent()">
+        <option value="">Все секции</option>
+        ${S.groups.map(g => `<option value="${g.code}" ${S.fieldsFilterGroup===g.code?'selected':''}>${g.label}</option>`).join('')}
+      </select>
+      <select onchange="S.fieldsFilterType=this.value;renderContent()">
+        <option value="">Все типы</option>
+        ${S.doorTypes.map(t => `<option value="${t.code}" ${S.fieldsFilterType===t.code?'selected':''}>${t.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="data-table">
+        <thead><tr><th style="width:50px">&#8693;</th><th>Код</th><th>Название</th><th>Тип</th><th>Обяз.</th><th>Типы</th><th>Правила/Опции</th><th style="text-align:right">Действия</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function moveField(code, groupCode, dir) {
+  const gf = S.fields.filter(f => f.group === groupCode).sort((a,b) => (a.sortOrder||0)-(b.sortOrder||0));
+  const idx = gf.findIndex(f => f.code === code);
+  const ni = idx + dir;
+  if (ni < 0 || ni >= gf.length) return;
+  const tmpSort = gf[idx].sortOrder;
+  gf[idx].sortOrder = gf[ni].sortOrder;
+  gf[ni].sortOrder = tmpSort;
+  persist(); renderContent();
+}
+
+// -- Field editor state
+let _feState = {};
+
+function openFieldEditor(code) {
+  const f = code ? S.fields.find(x => x.code === code) : null;
+  const isNew = !f;
+  _feState = {
+    isNew,
+    oldCode: code || '',
+    code: f ? f.code : '',
+    label: f ? f.label : '',
+    type: f ? f.type : 'text',
+    group: f ? f.group : (S.groups[0]?.code || ''),
+    required: f ? f.required : false,
+    unit: f ? (f.unit || '') : '',
+    placeholder: f ? (f.placeholder || '') : '',
+    fullWidth: f ? f.fullWidth : false,
+    note: f ? (f.note || '') : '',
+    applicability: f ? [...(f.applicability || [])] : [],
+    sortOrder: f ? f.sortOrder : 100,
+    options: f ? JSON.parse(JSON.stringify(f.options || [])) : [],
+    rules: f ? JSON.parse(JSON.stringify(f.rules || [])) : [],
+    activeTab: 'basic',
+  };
+  renderFieldModal();
+}
+
+function renderFieldModal() {
+  const fe = _feState;
+  const isSelect = fe.type === 'select' || fe.type === 'multiselect';
+
+  let basicTab = `
+    <div class="form-row">
+      <div class="form-group"><label>Код <span class="req">*</span></label><input class="form-input" id="fe-code" value="${fe.code}" ${!fe.isNew?'disabled':''} placeholder="field_code" onchange="_feState.code=this.value"></div>
+      <div class="form-group"><label>Название <span class="req">*</span></label><input class="form-input" id="fe-label" value="${fe.label}" placeholder="Название поля" onchange="_feState.label=this.value"></div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-group"><label>Тип поля <span class="req">*</span></label><select class="form-input" id="fe-type" onchange="_feState.type=this.value;renderFieldModal()">
+        ${['text','number','select','textarea','boolean','multiselect'].map(t => `<option value="${t}" ${fe.type===t?'selected':''}>${t}</option>`).join('')}
+      </select></div>
+      <div class="form-group"><label>Секция <span class="req">*</span></label><select class="form-input" id="fe-group" onchange="_feState.group=this.value">
+        ${S.groups.map(g => `<option value="${g.code}" ${fe.group===g.code?'selected':''}>${g.label}</option>`).join('')}
+      </select></div>
+      <div class="form-group"><label>Порядок сортировки</label><input class="form-input" type="number" id="fe-sort" value="${fe.sortOrder}" onchange="_feState.sortOrder=+this.value"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Ед. измерения</label><input class="form-input" id="fe-unit" value="${fe.unit}" placeholder="мм" onchange="_feState.unit=this.value"></div>
+      <div class="form-group"><label>Placeholder</label><input class="form-input" id="fe-ph" value="${fe.placeholder}" onchange="_feState.placeholder=this.value"></div>
+    </div>
+    <div class="form-group"><label>Подсказка</label><input class="form-input" id="fe-note" value="${fe.note}" placeholder="Подсказка для менеджера" onchange="_feState.note=this.value"></div>
+    <div style="display:flex;gap:20px;margin-top:8px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><label class="toggle"><input type="checkbox" id="fe-req" ${fe.required?'checked':''} onchange="_feState.required=this.checked"><span class="toggle-slider"></span></label> Обязательное</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><label class="toggle"><input type="checkbox" id="fe-fw" ${fe.fullWidth?'checked':''} onchange="_feState.fullWidth=this.checked"><span class="toggle-slider"></span></label> Полная ширина</label>
+    </div>
+    <div class="form-group" style="margin-top:12px"><label>Применимость к типам</label><div class="checkbox-group">
+      ${S.doorTypes.map(t => `<label class="checkbox-label${fe.applicability.includes(t.code)?' checked':''}"><input type="checkbox" value="${t.code}" ${fe.applicability.includes(t.code)?'checked':''} onchange="toggleFeApp(this)">${t.shortLabel}</label>`).join('')}
+    </div><div class="form-hint">Пусто = для всех типов</div></div>`;
+
+  let optionsTab = '';
+  if (isSelect) {
+    optionsTab = `<div style="margin-bottom:10px;font-size:12px;color:var(--text-secondary)">Опции для выбора (${fe.options.length})</div>`;
+    fe.options.forEach((o, i) => {
+      optionsTab += `<div class="option-row">
+        <div class="move-btns">
+          <button class="btn-icon" style="font-size:9px" ${i===0?'disabled':''} onclick="moveFeOption(${i},-1)">&#9650;</button>
+          <button class="btn-icon" style="font-size:9px" ${i===fe.options.length-1?'disabled':''} onclick="moveFeOption(${i},1)">&#9660;</button>
+        </div>
+        <input class="form-input" style="flex:1" value="${o.value}" placeholder="value (авто)" id="opt-val-${i}" onchange="_feState.options[${i}].value=this.value">
+        <input class="form-input" style="flex:1.5" value="${o.label}" placeholder="Метка (название)" onchange="_feState.options[${i}].label=this.value;autoFillOptionCode(${i},this.value)">
+        <button class="btn-icon danger" onclick="removeFeOption(${i})">&#128465;</button>
+      </div>`;
+    });
+    optionsTab += `<button class="btn btn-sm btn-secondary" onclick="addFeOption()" style="margin-top:6px">+ Добавить опцию</button>
+      <div class="options-bulk" style="margin-top:12px">
+        <button class="btn btn-sm btn-secondary" onclick="toggleBulkOptions()">Bulk-ввод</button>
+        <div id="bulk-area" style="display:none;margin-top:6px">
+          <textarea class="form-input" id="bulk-text" placeholder="Метка (код сгенерируется автоматически)&#10;или: value|Метка" style="height:100px;font-family:monospace;font-size:11px"></textarea>
+          <button class="btn btn-sm btn-primary" onclick="applyBulkOptions()" style="margin-top:4px">Применить</button>
+        </div>
+      </div>`;
+  } else {
+    optionsTab = '<div class="empty-state"><p>Опции доступны только для типов select и multiselect</p></div>';
+  }
+
+  let rulesTab = '';
+  if (fe.rules.length) {
+    fe.rules.forEach((r, i) => {
+      const depField = S.fields.find(f => f.code === r.dependsOn);
+      rulesTab += `<div class="rule-row">
+        <span class="rule-type ${r.rule === 'show_when' ? 'show' : 'hide'}">${r.rule === 'show_when' ? 'Показывать' : 'Скрывать'} когда</span>
+        <span>"${depField ? depField.label : r.dependsOn}"</span> =
+        <span class="rule-values">${r.values.map(v => `<span class="badge badge-blue">${v}</span>`).join('')}</span>
+        <button class="btn-icon danger" onclick="removeFeRule(${i})" style="margin-left:auto">&#128465;</button>
+      </div>`;
+    });
+  } else {
+    rulesTab += '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Нет правил видимости</div>';
+  }
+  rulesTab += `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">Добавить правило</div>
+    <div class="form-row-3">
+      <div class="form-group"><label>Тип</label><select class="form-input" id="nr-type"><option value="show_when">Показывать когда</option><option value="hide_when">Скрывать когда</option></select></div>
+      <div class="form-group"><label>Зависит от</label><select class="form-input" id="nr-depends" onchange="updateRuleValues()">
+        <option value="">-- выберите --</option>
+        ${S.fields.filter(f => f.code !== fe.code).map(f => `<option value="${f.code}">${f.label} (${f.code})</option>`).join('')}
+      </select></div>
+      <div class="form-group"><label>Значения</label><div id="nr-values-area"><input class="form-input" id="nr-values-text" placeholder="через запятую"></div></div>
+    </div>
+    <button class="btn btn-sm btn-primary" onclick="addFeRule()">Добавить правило</button>
+  </div>`;
+
+  openModal(`
+    <div class="modal-header"><h3>${fe.isNew?'Новое поле':'Редактировать поле'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="modal-tabs">
+        <div class="modal-tab ${fe.activeTab==='basic'?'active':''}" onclick="_feState.activeTab='basic';renderFieldModal()">Основные</div>
+        <div class="modal-tab ${fe.activeTab==='options'?'active':''}" onclick="_feState.activeTab='options';renderFieldModal()">Опции ${isSelect?'<span class=tab-badge>'+fe.options.length+'</span>':''}</div>
+        <div class="modal-tab ${fe.activeTab==='rules'?'active':''}" onclick="_feState.activeTab='rules';renderFieldModal()">Правила ${fe.rules.length?'<span class=tab-badge>'+fe.rules.length+'</span>':''}</div>
+      </div>
+      <div class="tab-content ${fe.activeTab==='basic'?'active':''}">${basicTab}</div>
+      <div class="tab-content ${fe.activeTab==='options'?'active':''}">${optionsTab}</div>
+      <div class="tab-content ${fe.activeTab==='rules'?'active':''}">${rulesTab}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveField()">Сохранить</button>
+    </div>
+  `);
+}
+
+function toggleFeApp(el) {
+  const v = el.value;
+  el.parentElement.classList.toggle('checked');
+  if (el.checked) { if (!_feState.applicability.includes(v)) _feState.applicability.push(v); }
+  else { _feState.applicability = _feState.applicability.filter(x => x !== v); }
+}
+
+function addFeOption() { _feState.options.push({ value: '', label: '' }); renderFieldModal(); }
+function autoFillOptionCode(idx, label) {
+  // Auto-generate code only if current value is empty or was previously auto-generated
+  const el = document.getElementById('opt-val-' + idx);
+  const currentVal = _feState.options[idx].value;
+  if (!currentVal || currentVal === transliterate(_feState.options[idx]._prevLabel || '')) {
+    const code = transliterate(label);
+    _feState.options[idx].value = code;
+    _feState.options[idx]._prevLabel = label;
+    if (el) el.value = code;
+  }
+}
+function removeFeOption(i) { _feState.options.splice(i, 1); renderFieldModal(); }
+function moveFeOption(i, dir) {
+  const ni = i + dir;
+  if (ni < 0 || ni >= _feState.options.length) return;
+  [_feState.options[i], _feState.options[ni]] = [_feState.options[ni], _feState.options[i]];
+  renderFieldModal();
+}
+function toggleBulkOptions() {
+  const el = document.getElementById('bulk-area');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function applyBulkOptions() {
+  const text = document.getElementById('bulk-text').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').filter(l => l.trim());
+  lines.forEach(line => {
+    const parts = line.split('|');
+    if (parts.length >= 2) {
+      // Explicit format: value|Label
+      const value = parts[0].trim();
+      const label = parts[1].trim();
+      if (value && label) _feState.options.push({ value, label });
+    } else {
+      // Only label provided: auto-generate code via transliteration
+      const label = parts[0].trim();
+      if (label) _feState.options.push({ value: transliterate(label), label });
+    }
+  });
+  renderFieldModal();
+}
+
+function removeFeRule(i) { _feState.rules.splice(i, 1); renderFieldModal(); }
+
+function updateRuleValues() {
+  const depCode = document.getElementById('nr-depends').value;
+  const depField = S.fields.find(f => f.code === depCode);
+  const area = document.getElementById('nr-values-area');
+  if (depField && depField.options && depField.options.length) {
+    area.innerHTML = `<div class="checkbox-group" id="nr-values-checks">
+      ${depField.options.map(o => `<label class="checkbox-label"><input type="checkbox" value="${o.value}" onchange="this.parentElement.classList.toggle('checked')">${o.label}</label>`).join('')}
+    </div>`;
+  } else {
+    area.innerHTML = `<input class="form-input" id="nr-values-text" placeholder="через запятую">`;
+  }
+}
+
+function addFeRule() {
+  const ruleType = document.getElementById('nr-type').value;
+  const depCode = document.getElementById('nr-depends').value;
+  if (!depCode) return showToast('Выберите поле-зависимость');
+  let values = [];
+  const checks = document.querySelectorAll('#nr-values-checks input:checked');
+  if (checks.length) {
+    values = [...checks].map(c => c.value);
+  } else {
+    const txt = document.getElementById('nr-values-text');
+    if (txt) values = txt.value.split(',').map(v => v.trim()).filter(Boolean);
+  }
+  if (!values.length) return showToast('Укажите хотя бы одно значение');
+  _feState.rules.push({ dependsOn: depCode, values, rule: ruleType });
+  renderFieldModal();
+}
+
+function saveField() {
+  const fe = _feState;
+  // Sync inputs that might not have triggered onchange
+  const codeEl = document.getElementById('fe-code');
+  const labelEl = document.getElementById('fe-label');
+  if (codeEl) fe.code = codeEl.value.trim();
+  if (labelEl) fe.label = labelEl.value.trim();
+  const typeEl = document.getElementById('fe-type');
+  if (typeEl) fe.type = typeEl.value;
+  const groupEl = document.getElementById('fe-group');
+  if (groupEl) fe.group = groupEl.value;
+  const sortEl = document.getElementById('fe-sort');
+  if (sortEl) fe.sortOrder = +sortEl.value;
+  const unitEl = document.getElementById('fe-unit');
+  if (unitEl) fe.unit = unitEl.value.trim();
+  const phEl = document.getElementById('fe-ph');
+  if (phEl) fe.placeholder = phEl.value.trim();
+  const noteEl = document.getElementById('fe-note');
+  if (noteEl) fe.note = noteEl.value.trim();
+  const reqEl = document.getElementById('fe-req');
+  if (reqEl) fe.required = reqEl.checked;
+  const fwEl = document.getElementById('fe-fw');
+  if (fwEl) fe.fullWidth = fwEl.checked;
+
+  if (!fe.code || !fe.label) return showToast('Заполните код и название');
+  if (!CODE_RE.test(fe.code)) return showToast('Код: латиница, цифры, подчёркивание');
+  if (fe.isNew && S.fields.find(f => f.code === fe.code)) return showToast('Поле с таким кодом уже существует');
+  if ((fe.type === 'select' || fe.type === 'multiselect') && !fe.options.length) return showToast('Добавьте хотя бы одну опцию для select');
+
+  const fieldData = {
+    code: fe.code, label: fe.label, type: fe.type, group: fe.group,
+    required: fe.required, unit: fe.unit, placeholder: fe.placeholder,
+    fullWidth: fe.fullWidth, note: fe.note, applicability: fe.applicability,
+    sortOrder: fe.sortOrder, options: fe.options, rules: fe.rules,
+  };
+
+  if (fe.isNew) {
+    S.fields.push(fieldData);
+  } else {
+    const idx = S.fields.findIndex(f => f.code === fe.oldCode);
+    if (idx >= 0) S.fields[idx] = fieldData;
+  }
+  persist(); closeModal(); renderSidebar(); renderContent();
+  showToast(fe.isNew ? 'Поле добавлено' : 'Поле обновлено');
+}
+
+function deleteField(code) {
+  const refs = S.fields.filter(f => f.rules?.some(r => r.dependsOn === code)).length;
+  confirmModal(`Удалить поле "<b>${code}</b>"?${refs ? `<br>На него ссылаются правила из ${refs} полей` : ''}`, () => {
+    S.fields = S.fields.filter(f => f.code !== code);
+    persist(); renderSidebar(); renderContent();
+    showToast('Поле удалено');
+  });
+}
+
+// ============================================================================
+// RULES OVERVIEW PAGE
+// ============================================================================
+
+function renderRulesPage(c) {
+  const allRules = [];
+  S.fields.forEach(f => {
+    (f.rules || []).forEach((r, ri) => {
+      allRules.push({ fieldCode: f.code, fieldLabel: f.label, ruleIndex: ri, ...r });
+    });
+  });
+
+  c.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Правила видимости</div><div class="page-subtitle">Все правила show_when / hide_when по всем полям. Кликните на поле для редактирования.</div></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="data-table">
+        <thead><tr><th>Целевое поле</th><th>Правило</th><th>Зависит от</th><th>Значения</th><th style="text-align:right">Действия</th></tr></thead>
+        <tbody>${allRules.length ? allRules.map(r => {
+          const depField = S.fields.find(f => f.code === r.dependsOn);
+          return `<tr>
+            <td><strong>${r.fieldLabel}</strong> <span class="code">${r.fieldCode}</span></td>
+            <td><span class="badge ${r.rule === 'show_when' ? 'badge-lime' : 'badge-red'}">${r.rule === 'show_when' ? 'show_when' : 'hide_when'}</span></td>
+            <td>${depField ? depField.label : r.dependsOn} <span class="code">${r.dependsOn}</span></td>
+            <td>${r.values.map(v => `<span class="badge badge-blue">${v}</span>`).join(' ')}</td>
+            <td class="actions">
+              <button class="btn-icon" onclick="editRuleFromOverview('${r.fieldCode}')" title="Редактировать поле">&#9998;</button>
+              <button class="btn-icon danger" onclick="deleteRuleFromOverview('${r.fieldCode}',${r.ruleIndex})" title="Удалить правило">&#128465;</button>
+            </td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="5"><div class="empty-state"><p>Нет правил видимости</p></div></td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function editRuleFromOverview(fieldCode) {
+  _feState.activeTab = 'rules';
+  openFieldEditor(fieldCode);
+}
+
+function deleteRuleFromOverview(fieldCode, ruleIndex) {
+  const field = S.fields.find(f => f.code === fieldCode);
+  if (!field || !field.rules) return;
+  const rule = field.rules[ruleIndex];
+  const depField = S.fields.find(f => f.code === rule.dependsOn);
+  confirmModal(`Удалить правило для поля "<b>${field.label}</b>"?<br>${rule.rule === 'show_when' ? 'Показывать' : 'Скрывать'} когда "${depField ? depField.label : rule.dependsOn}" = ${rule.values.join(', ')}`, () => {
+    field.rules.splice(ruleIndex, 1);
+    persist(); renderSidebar(); renderContent();
+    showToast('Правило удалено');
+  });
+}
+
+// ============================================================================
+// PREVIEW PAGE
+// ============================================================================
+
+function renderPreviewPage(c) {
+  const enabledTypes = S.doorTypes.filter(t => t.enabled);
+  if (!S.previewType && enabledTypes.length) S.previewType = enabledTypes[0].code;
+  const models = S.models[S.previewType] || [];
+
+  let sectionsHtml = '';
+  if (S.previewModel) {
+    const typeCode = S.previewType;
+    S.groups.forEach(g => {
+      if (g.applicability.length && !g.applicability.includes(typeCode)) return;
+      // Model-level applicability: if modelApplicability is set, only show for listed models
+      if (g.modelApplicability && g.modelApplicability.length && !g.modelApplicability.includes(S.previewModel)) return;
+      const groupFields = S.fields
+        .filter(f => f.group === g.code)
+        .filter(f => !f.applicability.length || f.applicability.includes(typeCode))
+        .sort((a,b) => (a.sortOrder||0)-(b.sortOrder||0));
+      if (!groupFields.length) return;
+
+      const expanded = S.previewExpanded[g.code];
+      const visibleCount = groupFields.filter(f => isPreviewFieldVisible(f)).length;
+
+      let fieldsHtml = groupFields.map(f => {
+        const visible = isPreviewFieldVisible(f);
+        let input = '';
+        const val = S.previewValues[f.code] || '';
+        if (f.type === 'select' || f.type === 'multiselect') {
+          input = `<select onchange="handlePreviewChange('${f.code}',this.value)">
+            <option value="">-- выберите --</option>
+            ${(f.options||[]).map(o => `<option value="${o.value}" ${val===o.value?'selected':''}>${o.label}</option>`).join('')}
+          </select>`;
+        } else if (f.type === 'textarea') {
+          input = `<textarea placeholder="${f.placeholder||''}" onchange="handlePreviewChange('${f.code}',this.value)">${val}</textarea>`;
+        } else if (f.type === 'boolean') {
+          input = `<select onchange="handlePreviewChange('${f.code}',this.value)">
+            <option value="">--</option><option value="true" ${val==='true'?'selected':''}>Да</option><option value="false" ${val==='false'?'selected':''}>Нет</option>
+          </select>`;
+        } else {
+          input = `<input type="${f.type === 'number' ? 'number' : 'text'}" value="${val}" placeholder="${f.placeholder||''}" onchange="handlePreviewChange('${f.code}',this.value)">`;
+        }
+        return `<div class="field${visible ? '' : ' hidden'}${f.fullWidth ? ' full-width' : ''}">
+          <label>${f.label}${f.required ? ' <span class="req">*</span>' : ''}${f.unit ? ` <span class="unit">(${f.unit})</span>` : ''}</label>
+          ${input}
+          ${f.note ? `<div class="field-note">${f.note}</div>` : ''}
+        </div>`;
+      }).join('');
+
+      sectionsHtml += `<div class="form-section${expanded ? ' expanded' : ''}" data-group="${g.code}">
+        <div class="section-header" onclick="togglePreviewGroup('${g.code}')">
+          <div class="section-title"><span class="icon">${g.icon}</span>${g.label} <span class="section-count">${visibleCount}</span></div>
+          <span class="section-chevron">&#9660;</span>
+        </div>
+        <div class="section-body"><div class="section-content">${fieldsHtml}</div></div>
+      </div>`;
+    });
+  }
+
+  c.innerHTML = `
+    <div class="page-header"><div><div class="page-title">Превью конфигуратора</div><div class="page-subtitle">Как менеджер видит форму с текущими настройками</div></div></div>
+    <div class="preview-banner">&#9432; Режим превью — данные из конфигуратора администратора. Изменения здесь не сохраняются.</div>
+    <div class="preview-form">
+      <div class="type-model-row">
+        <div style="display:flex;flex-direction:column">
+          <label style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">Тип двери <span style="color:var(--error)">*</span></label>
+          <select class="form-input" onchange="S.previewType=this.value;S.previewModel=null;S.previewValues={};S.previewExpanded={};renderContent()">
+            ${enabledTypes.map(t => `<option value="${t.code}" ${S.previewType===t.code?'selected':''}>${t.label}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <label style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">Модель <span style="color:var(--error)">*</span></label>
+          <select class="form-input" onchange="handlePreviewModelChange(this.value)">
+            <option value="">-- Выберите модель --</option>
+            ${models.map(m => `<option value="${m.code}" ${S.previewModel===m.code?'selected':''}>${m.label}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      ${S.previewModel ? sectionsHtml : '<div class="card"><div class="empty-state"><p>Выберите тип и модель для превью</p></div></div>'}
+    </div>`;
+}
+
+function isPreviewFieldVisible(field) {
+  if (!field.rules || !field.rules.length) return true;
+  for (const r of field.rules) {
+    const val = S.previewValues[r.dependsOn] || '';
+    const matches = r.values.includes(val);
+    if (r.rule === 'show_when' && !matches) return false;
+    if (r.rule === 'hide_when' && matches) return false;
+  }
+  return true;
+}
+
+function handlePreviewModelChange(modelCode) {
+  S.previewModel = modelCode;
+  S.previewValues = {};
+  S.previewExpanded = {};
+  // Apply noExterior default
+  const model = (S.models[S.previewType]||[]).find(m => m.code === modelCode);
+  if (model && model.noExterior) {
+    S.previewValues['ext_overlay'] = 'none';
+  }
+  // Auto-expand all applicable sections so fields are immediately visible
+  if (modelCode) {
+    const typeCode = S.previewType;
+    S.groups.forEach(g => {
+      if (g.applicability.length && !g.applicability.includes(typeCode)) return;
+      if (g.modelApplicability && g.modelApplicability.length && !g.modelApplicability.includes(modelCode)) return;
+      const hasFields = S.fields.some(f => f.group === g.code && (!f.applicability.length || f.applicability.includes(typeCode)));
+      if (hasFields) S.previewExpanded[g.code] = true;
+    });
+  }
+  renderContent();
+}
+
+function togglePreviewGroup(code) {
+  S.previewExpanded[code] = !S.previewExpanded[code];
+  const el = document.querySelector(`.preview-form [data-group="${code}"]`);
+  if (el) el.classList.toggle('expanded');
+}
+
+function handlePreviewChange(code, value) {
+  S.previewValues[code] = value;
+  // Clear dependent values that are no longer visible
+  S.fields.forEach(f => {
+    if (f.rules?.some(r => r.dependsOn === code) && !isPreviewFieldVisible(f)) {
+      delete S.previewValues[f.code];
+    }
+  });
+  renderContent();
+}
+
+// ============================================================================
+// EXPORT / IMPORT PAGE
+// ============================================================================
+
+function renderExportPage(c) {
+  const exportData = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    source: 'staleks-configurator-admin',
+    data: { doorTypes: S.doorTypes, models: S.models, groups: S.groups, fields: S.fields }
+  };
+  const jsonStr = JSON.stringify(exportData, null, 2);
+
+  c.innerHTML = `
+    <div class="page-header"><div><div class="page-title">Экспорт / Импорт</div><div class="page-subtitle">Сохранение и загрузка конфигурации</div></div></div>
+    <div class="export-grid">
+      <div class="card">
+        <h4 style="font-size:14px;margin-bottom:12px">Экспорт конфигурации</h4>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Скачать всю конфигурацию (типы, модели, секции, поля, правила) в формате JSON</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn btn-primary" onclick="copyExport()">Копировать в буфер</button>
+          <button class="btn btn-secondary" onclick="downloadExport()">Скачать файл</button>
+        </div>
+        <details><summary style="font-size:11px;color:var(--muted);cursor:pointer;margin-bottom:6px">Показать JSON</summary>
+          <div class="json-preview">${escHtml(jsonStr)}</div>
+        </details>
+      </div>
+      <div class="card">
+        <h4 style="font-size:14px;margin-bottom:12px">Импорт конфигурации</h4>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Загрузить конфигурацию из JSON файла. Текущие данные будут заменены.</p>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <div style="font-size:24px;margin-bottom:6px">&#128193;</div>
+          <div>Нажмите или перетащите JSON файл</div>
+          <input type="file" id="file-input" accept=".json" style="display:none" onchange="handleFileImport(this.files[0])">
+        </div>
+        <div style="margin-top:12px"><p style="font-size:11px;color:var(--muted);margin-bottom:6px">Или вставьте JSON:</p>
+          <textarea class="form-input" id="import-text" placeholder='{"version":"1.0","data":{...}}' style="height:120px;font-family:monospace;font-size:10px"></textarea>
+          <button class="btn btn-primary btn-sm" onclick="handleTextImport()" style="margin-top:6px">Загрузить</button>
+        </div>
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+          <button class="btn btn-danger btn-sm" onclick="handleReset()">Сбросить к стандартным</button>
+          <div class="form-hint" style="margin-top:4px">Восстановить стандартную конфигурацию из прототипа</div>
+        </div>
+      </div>
+    </div>`;
+
+  // Drag and drop
+  const dz = document.getElementById('drop-zone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--accent)'; dz.style.background = 'var(--accent-light)'; });
+  dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; dz.style.background = ''; });
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.style.borderColor = ''; dz.style.background = ''; if (e.dataTransfer.files[0]) handleFileImport(e.dataTransfer.files[0]); });
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function copyExport() {
+  const data = { version: '1.0', exportedAt: new Date().toISOString(), source: 'staleks-configurator-admin', data: { doorTypes: S.doorTypes, models: S.models, groups: S.groups, fields: S.fields } };
+  navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => showToast('Скопировано в буфер'));
+}
+
+function downloadExport() {
+  const data = { version: '1.0', exportedAt: new Date().toISOString(), source: 'staleks-configurator-admin', data: { doorTypes: S.doorTypes, models: S.models, groups: S.groups, fields: S.fields } };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'staleks-configurator-config.json';
+  a.click();
+  showToast('Файл скачан');
+}
+
+function handleFileImport(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => importJson(e.target.result);
+  reader.readAsText(file);
+}
+
+function handleTextImport() {
+  const text = document.getElementById('import-text').value.trim();
+  if (!text) return showToast('Вставьте JSON');
+  importJson(text);
+}
+
+function importJson(raw) {
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj.data || !obj.data.doorTypes || !obj.data.groups || !obj.data.fields) {
+      return showToast('Неверный формат: отсутствуют обязательные секции data.{doorTypes, groups, fields}');
+    }
+    confirmModal('Текущие данные будут полностью заменены импортированными. Продолжить?', () => {
+      S.doorTypes = obj.data.doorTypes;
+      S.models = obj.data.models || {};
+      S.groups = obj.data.groups;
+      S.fields = obj.data.fields;
+      persist(); renderSidebar(); renderContent();
+      showToast('Конфигурация импортирована');
+    });
+  } catch(e) {
+    showToast('Ошибка парсинга JSON: ' + e.message);
+  }
+}
+
+function handleReset() {
+  confirmModal('Сбросить все данные к стандартным из прототипа? Текущие изменения будут потеряны.', () => {
+    resetToDefaults();
+    renderSidebar(); renderContent();
+    showToast('Данные сброшены к стандартным');
+  });
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+
+loadState();
+renderSidebar();
+renderContent();
+
+</script>
+</body>
+</html>

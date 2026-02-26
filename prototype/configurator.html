@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staleks - Модуль заказов (MVP v3)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #C0DF16;
+      --accent-hover: #a8c410;
+      --accent-light: #f8fbe8;
+      --sidebar: #212322;
+      --bg: #FAF9F5;
+      --muted: #969C99;
+      --error: #DF1616;
+      --white: #FFFFFF;
+      --border: #E2E2E0;
+      --text: #1A1A1A;
+      --text-secondary: #5A5A5A;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-lg: 0 4px 12px rgba(0,0,0,0.12);
+      --status-draft: #969C99;
+      --status-agreed: #3B82F6;
+      --status-production: #F59E0B;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Montserrat', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
+
+    /* Header */
+    .header { background: var(--sidebar); padding: 14px 32px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon { width: 34px; height: 34px; background: var(--accent); color: var(--sidebar); font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+    .logo-text { color: var(--white); font-weight: 700; font-size: 17px; }
+    .logo-text span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px 16px 80px; }
+
+    /* Order header stub */
+    .order-header-stub { background: #f0f0ee; border: 1px dashed var(--border); border-radius: var(--radius); padding: 14px 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .order-header-stub .order-info { display: flex; align-items: center; gap: 16px; flex: 1; flex-wrap: wrap; }
+    .order-header-stub .order-field { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+    .order-header-stub .order-field strong { color: var(--text); font-weight: 600; }
+    .order-header-stub .order-field .placeholder { color: var(--muted); }
+    .order-header-stub .order-status-select { height: 32px; padding: 0 28px 0 10px; border: 1px solid var(--border); border-radius: 6px; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600; background: var(--white); appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23969C99'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 6px center; background-size: 16px; cursor: pointer; outline: none; }
+    .order-stub-note { font-size: 11px; color: var(--muted); font-style: italic; width: 100%; margin-top: 4px; }
+
+    /* Positions table */
+    .positions-panel { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; overflow: visible; }
+    .positions-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .positions-header h3 { font-size: 14px; font-weight: 600; }
+    .positions-actions { display: flex; gap: 8px; }
+    .positions-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .positions-table th { background: #f5f5f3; padding: 8px 5px; text-align: left; font-weight: 600; font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+    .positions-table td { padding: 7px 5px; border-top: 1px solid var(--border); white-space: nowrap; overflow: visible; text-overflow: ellipsis; max-width: 110px; }
+    .positions-table td:not(:nth-child(2)) { overflow: hidden; }
+    .positions-table tr { cursor: pointer; transition: background 0.15s; }
+    .positions-table tbody tr:hover { background: var(--accent-light); }
+    .positions-table tr.editing { background: #eef5c8; }
+    .positions-empty { padding: 30px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* Status badge */
+    .status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; white-space: nowrap; cursor: pointer; position: relative; }
+    .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .status-badge.draft { background: #f0f0ee; color: #666; }
+    .status-badge.draft::before { background: var(--status-draft); }
+    .status-badge.agreed { background: #EFF6FF; color: #2563EB; }
+    .status-badge.agreed::before { background: var(--status-agreed); }
+    .status-badge.production { background: #FFF7ED; color: #D97706; }
+    .status-badge.production::before { background: var(--status-production); }
+    .status-badge.locked { cursor: default; }
+
+    /* Status dropdown */
+    .status-dropdown { position: absolute; top: 100%; left: 0; background: var(--white); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-lg); z-index: 50; min-width: 180px; padding: 4px 0; display: none; }
+    .status-dropdown.open { display: block; }
+    .status-dropdown-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; cursor: pointer; transition: background 0.15s; }
+    .status-dropdown-item:hover { background: var(--accent-light); }
+    .status-dropdown-item .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    .row-actions { display: flex; gap: 2px; }
+    .copy-row-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+    .copy-row-btn:hover { background: #e8f0e8; color: var(--text); }
+    .delete-row-btn { background: none; border: none; color: var(--error); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
+    .delete-row-btn:hover { background: #fde8e8; }
+
+    /* Configurator panel */
+    .configurator-panel { transition: all 0.3s; }
+    .configurator-panel.hidden { display: none; }
+    .configurator-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; background: var(--white); padding: 14px 18px; border-radius: var(--radius); box-shadow: var(--shadow); }
+    .configurator-header h3 { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+
+    /* Type + Model selector inside configurator */
+    .type-model-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: var(--white); padding: 16px 18px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; }
+    .type-model-field { display: flex; flex-direction: column; }
+    .type-model-field label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+
+    /* Form sections */
+    .form-section { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; }
+    .form-section.hidden { display: none; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; cursor: pointer; user-select: none; border-left: 4px solid transparent; transition: all 0.2s; }
+    .section-header:hover { background: #fafaf8; }
+    .form-section.expanded .section-header { border-left-color: var(--accent); border-bottom: 1px solid var(--border); }
+    .section-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .section-count { background: #f0f0ee; color: var(--text-secondary); font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 10px; }
+    .section-chevron { width: 18px; height: 18px; transition: transform 0.2s; color: var(--muted); }
+    .form-section.expanded .section-chevron { transform: rotate(180deg); }
+    .section-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    .form-section.expanded .section-body { max-height: 2000px; }
+    .section-content { padding: 16px 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+
+    /* Marking preview */
+    .marking-preview { grid-column: 1 / -1; background: var(--accent-light); border: 1px solid #e0e8a0; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: var(--text-secondary); }
+    .marking-preview strong { color: var(--text); font-weight: 600; }
+
+    /* Fields */
+    .field { display: flex; flex-direction: column; transition: opacity 0.25s; }
+    .field.hidden { display: none; }
+    .field.full-width { grid-column: 1 / -1; }
+    .field-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
+    .field-label .required { color: var(--error); font-weight: 700; }
+    .field-label .unit { color: var(--muted); font-size: 10px; }
+    .field-input, .field-select { height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; font-family: 'Montserrat', sans-serif; font-size: 13px; color: var(--text); background: var(--white); transition: border-color 0.2s, box-shadow 0.2s; outline: none; width: 100%; }
+    .field-input:focus, .field-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(192,223,22,0.2); }
+    .field-input::placeholder { color: var(--muted); }
+    .field-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23969C99'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 18px; padding-right: 30px; cursor: pointer; }
+    .field-note { font-size: 10px; color: var(--muted); margin-top: 3px; font-style: italic; }
+
+    @keyframes fieldReveal { 0% { background: rgba(192,223,22,0.15); } 100% { background: transparent; } }
+    .field.just-revealed { animation: fieldReveal 0.8s ease; }
+
+    /* Buttons */
+    .btn { height: 36px; padding: 0 18px; border-radius: 6px; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: var(--accent); color: var(--sidebar); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--muted); background: #f5f5f3; }
+    .btn-sm { height: 32px; padding: 0 14px; font-size: 12px; }
+    .btn-danger { background: transparent; color: var(--error); border: 1px solid #f0c0c0; }
+    .btn-danger:hover { background: #fde8e8; }
+
+    /* Toast */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--sidebar); color: var(--white); padding: 12px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg); z-index: 300; transform: translateY(100px); opacity: 0; transition: all 0.3s; }
+    .toast.active { transform: translateY(0); opacity: 1; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: var(--white); border-radius: var(--radius); padding: 24px; max-width: 700px; width: 90%; max-height: 80vh; overflow: auto; }
+    .modal h3 { margin-bottom: 16px; font-size: 16px; }
+    .modal pre { background: #f5f5f3; padding: 14px; border-radius: 6px; font-size: 11px; overflow: auto; max-height: 50vh; font-family: 'Consolas', monospace; }
+    .modal .btn { margin-top: 12px; }
+
+    /* Production confirm modal */
+    .confirm-modal { max-width: 440px; text-align: center; }
+    .confirm-modal .warn-icon { font-size: 40px; margin-bottom: 12px; }
+    .confirm-modal h3 { margin-bottom: 8px; }
+    .confirm-modal p { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6; }
+    .confirm-modal .modal-actions { display: flex; gap: 10px; justify-content: center; }
+    .confirm-modal .btn-confirm-production { background: #F59E0B; color: var(--white); font-weight: 700; }
+    .confirm-modal .btn-confirm-production:hover { background: #D97706; }
+
+    /* Validation errors in toast */
+    .toast-errors { text-align: left; }
+    .toast-errors ul { margin: 6px 0 0 16px; font-size: 12px; }
+
+    @media (max-width: 768px) {
+      .type-model-row { grid-template-columns: 1fr; }
+      .section-content { grid-template-columns: 1fr; }
+      .header { padding: 10px 16px; }
+      .positions-table { font-size: 11px; }
+      .order-header-stub { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">S</div>
+    <div class="logo-text">STALEKS <span>Заказы</span></div>
+  </div>
+</header>
+
+<main class="container">
+  <!-- Order header stub -->
+  <div class="order-header-stub">
+    <div class="order-info">
+      <div class="order-field"><strong>&#128203; Заказ</strong> <span class="placeholder">#---</span></div>
+      <div class="order-field">Клиент: <span class="placeholder">---</span></div>
+      <div class="order-field">Объект: <span class="placeholder">---</span></div>
+      <div class="order-field">Менеджер: <span class="placeholder">---</span></div>
+      <div class="order-field">
+        Статус:
+        <select class="order-status-select" id="order-status" onchange="changeOrderStatus(this.value)">
+          <option value="draft">Черновик</option>
+          <option value="agreed">Согласован</option>
+          <option value="active">Активен</option>
+          <option value="completed">Завершён</option>
+          <option value="cancelled">Отменён</option>
+        </select>
+      </div>
+    </div>
+    <div class="order-stub-note">Данные заказа будут добавлены позже</div>
+  </div>
+
+  <!-- Positions table (always visible) -->
+  <div class="positions-panel">
+    <div class="positions-header">
+      <h3>Позиции <span id="positions-count" style="color:var(--muted);font-weight:400"></span></h3>
+      <div class="positions-actions">
+        <button class="btn btn-secondary btn-sm" onclick="showExcelStub()">&#128229; Импорт Excel</button>
+        <button class="btn btn-primary btn-sm" onclick="addPosition()">+ Добавить позицию</button>
+      </div>
+    </div>
+    <div id="positions-body"></div>
+  </div>
+
+  <!-- Configurator form (per-position) -->
+  <div id="configurator-panel" class="configurator-panel hidden">
+    <div class="configurator-header">
+      <h3 id="configurator-label">Новая позиция</h3>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="cancelPosition()">Отмена</button>
+        <button class="btn btn-primary btn-sm" onclick="savePosition()">Сохранить позицию</button>
+      </div>
+    </div>
+
+    <!-- Type + Model inside configurator -->
+    <div class="type-model-row">
+      <div class="type-model-field">
+        <label>Тип двери <span style="color:var(--error);font-weight:700">*</span></label>
+        <select class="field-select" id="cfg-door-type" onchange="onCfgTypeChange(this.value)">
+          <option value="">-- Выберите тип --</option>
+          <option value="technical">Техническая</option>
+          <option value="finish">С отделкой</option>
+          <option value="complex" disabled>Сложная (в разработке)</option>
+        </select>
+      </div>
+      <div class="type-model-field">
+        <label>Модель <span style="color:var(--error);font-weight:700">*</span></label>
+        <select class="field-select" id="cfg-model" onchange="onCfgModelChange(this.value)">
+          <option value="">-- Сначала выберите тип --</option>
+        </select>
+      </div>
+    </div>
+
+    <form id="configurator-form"></form>
+  </div>
+</main>
+
+<div id="json-modal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <h3>Данные позиций (JSON)</h3>
+    <pre id="json-output"></pre>
+    <button class="btn btn-secondary" onclick="copyJSON()">Копировать</button>
+    <button class="btn btn-primary" onclick="document.getElementById('json-modal').classList.remove('active')">Закрыть</button>
+  </div>
+</div>
+
+<div id="production-modal" class="modal-overlay" onclick="closeProductionModal(event)">
+  <div class="modal confirm-modal">
+    <div class="warn-icon">&#9888;</div>
+    <h3>Отправить на производство?</h3>
+    <p>Позиция будет отправлена на производство.<br><strong>Это действие необратимо.</strong><br>После подтверждения изменить параметры позиции будет невозможно.</p>
+    <div id="production-dup-warning" style="display:none;background:#FFF7ED;border:1px solid #FBBF24;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400E;font-weight:500;text-align:left;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="document.getElementById('production-modal').classList.remove('active')">Отмена</button>
+      <button class="btn btn-confirm-production" id="confirm-production-btn">Отправить на производство</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ========== DATA ==========
+
+const DOOR_TYPES = [
+  { code: 'technical', label: 'Техническая', shortLabel: 'Техн.' },
+  { code: 'finish', label: 'С отделкой', shortLabel: 'Отд.' },
+  { code: 'complex', label: 'Сложная', shortLabel: 'Сложн.', disabled: true },
+];
+
+const MODELS = {
+  technical: [
+    { code: 'tech_standard', label: 'Техническая', shortLabel: 'Техн.' },
+    { code: 'fire_ei30', label: 'Противопожарная Ei-30', shortLabel: 'Ei-30' },
+    { code: 'fire_ei60', label: 'Противопожарная Ei-60', shortLabel: 'Ei-60' },
+    { code: 'fire_ei90', label: 'Противопожарная Ei-90', shortLabel: 'Ei-90' },
+    { code: 'premium', label: 'Премиум (металл с двух сторон)', shortLabel: 'Премиум' },
+  ],
+  finish: [
+    { code: 'galant', label: 'Галант (без нар. отделки)', shortLabel: 'Галант', noExterior: true },
+    { code: 'modena', label: 'Модена (без нар. отделки)', shortLabel: 'Модена', noExterior: true },
+    { code: 'elite', label: 'Элит', shortLabel: 'Элит' },
+    { code: 'venezia', label: 'Венеция', shortLabel: 'Венеция' },
+    { code: 'palermo', label: 'Палермо', shortLabel: 'Палермо' },
+    { code: 'vinorit', label: 'Винорит', shortLabel: 'Винорит' },
+  ],
+};
+
+const POSITION_STATUSES = [
+  { code: 'draft', label: 'Черновик', color: 'var(--status-draft)' },
+  { code: 'agreed', label: 'Согласован', color: 'var(--status-agreed)' },
+  { code: 'production', label: 'В производстве', color: 'var(--status-production)' },
+];
+
+const GROUPS = [
+  { code: 'dimensions', label: 'Размеры', icon: '&#128207;' },
+  { code: 'construction', label: 'Конструктив', icon: '&#128295;' },
+  { code: 'glass_transom', label: 'Стеклопакет и фрамуга', icon: '&#129526;' },
+  { code: 'tech_specific', label: 'Технические параметры', icon: '&#9881;', applicability: ['technical'] },
+  { code: 'finish_exterior', label: 'Наружная отделка', icon: '&#127912;', applicability: ['finish'] },
+  { code: 'finish_interior', label: 'Внутренняя отделка', icon: '&#127912;', applicability: ['finish'] },
+  { code: 'hardware_apartment', label: 'Фурнитура', icon: '&#128273;', applicability: ['finish'] },
+  { code: 'marking', label: 'Маркировка', icon: '&#127991;' },
+  { code: 'notes', label: 'Примечание', icon: '&#128221;' },
+];
+
+const FIELDS = [
+  // ===== DIMENSIONS (all) =====
+  { code: 'height_block', label: 'Высота блока', type: 'number', group: 'dimensions', unit: 'мм', required: true, placeholder: '2050' },
+  { code: 'width_block', label: 'Ширина блока', type: 'number', group: 'dimensions', unit: 'мм', required: true, placeholder: '860' },
+  { code: 'leaf_count', label: 'Кол-во створок', type: 'select', group: 'dimensions', required: true,
+    options: [{ value: '1', label: '1 створка' }, { value: '2', label: '2 створки' }] },
+  { code: 'leaves_identical', label: 'Створки одинаковые', type: 'select', group: 'dimensions',
+    options: [{ value: 'yes', label: 'Да' }, { value: 'no', label: 'Нет' }],
+    rules: [{ dependsOn: 'leaf_count', values: ['2'], rule: 'show_when' }] },
+  { code: 'active_leaf_width', label: 'Ширина активной створки', type: 'number', group: 'dimensions', unit: 'мм', placeholder: 'мм',
+    rules: [
+      { dependsOn: 'leaf_count', values: ['2'], rule: 'show_when' },
+      { dependsOn: 'leaves_identical', values: ['no'], rule: 'show_when' },
+    ] },
+  { code: 'quantity', label: 'Кол-во дверей', type: 'number', group: 'dimensions', required: true, placeholder: '1' },
+
+  // ===== CONSTRUCTION (all) =====
+  { code: 'opening', label: 'Открывание', type: 'select', group: 'construction', required: true,
+    options: [{ value: 'right', label: 'Правое' }, { value: 'left', label: 'Левое' }, { value: 'other', label: 'Другое' }] },
+  { code: 'opening_scheme', label: 'Схема открывания', type: 'select', group: 'construction',
+    options: ['А','Б','К','L','Д','С','F','E'].map(v => ({ value: v, label: v })),
+    rules: [{ dependsOn: 'opening', values: ['other'], rule: 'show_when' }] },
+  { code: 'threshold', label: 'Порог', type: 'select', group: 'construction', required: true,
+    options: [
+      { value: 'standard_55', label: 'Стандарт 55мм' },
+      { value: 'lowered_30', label: 'Заниженный 30мм' },
+      { value: 'lowered_16', label: 'Заниженный 16мм' },
+      { value: 'none', label: 'Без порога' },
+      { value: 'retractable', label: 'Выпадающий' },
+      { value: 'brush', label: 'Щетка с резиновой рейкой' },
+    ] },
+  { code: 'metal_trim', label: 'Наличник (металл)', type: 'select', group: 'construction',
+    options: [
+      { value: 'with', label: 'С наличником' },
+      { value: 'without', label: 'Без наличника' },
+      { value: 'other', label: 'Другое' },
+    ] },
+  { code: 'trim_selection', label: 'Выбор наличника', type: 'select', group: 'construction',
+    options: [
+      { value: 'no_lock_side', label: 'Замочная сторона без нал.' },
+      { value: 'no_hinge_side', label: 'Шарнирная сторона без нал.' },
+      { value: 'no_top', label: 'Верх без нал.' },
+      { value: 'only_top', label: 'Нал. только сверху' },
+    ],
+    rules: [{ dependsOn: 'metal_trim', values: ['other'], rule: 'show_when' }] },
+  { code: 'bolt_lock', label: 'Задвижка', type: 'select', group: 'construction',
+    options: [
+      { value: 'standard', label: 'Стандарт' },
+      { value: 'end', label: 'Торцевая' },
+      { value: 'outside', label: 'С наружной стороны' },
+    ],
+    rules: [{ dependsOn: 'leaf_count', values: ['2'], rule: 'show_when' }] },
+  { code: 'seal_contours', label: 'Контуры уплотнения', type: 'select', group: 'construction',
+    options: [{ value: '2', label: '2 контура' }, { value: '3', label: '3 контура' }] },
+
+  // ===== GLASS & TRANSOM (all) =====
+  { code: 'has_glass', label: 'Стеклопакет', type: 'select', group: 'glass_transom',
+    options: [{ value: 'no', label: 'Нет' }, { value: 'yes', label: 'Есть' }] },
+  { code: 'glass_height', label: 'Высота стеклопакета', type: 'number', group: 'glass_transom', unit: 'мм', placeholder: 'мм',
+    rules: [{ dependsOn: 'has_glass', values: ['yes'], rule: 'show_when' }] },
+  { code: 'glass_width', label: 'Ширина стеклопакета', type: 'number', group: 'glass_transom', unit: 'мм', placeholder: 'мм',
+    rules: [{ dependsOn: 'has_glass', values: ['yes'], rule: 'show_when' }] },
+  { code: 'transom', label: 'Фрамуга', type: 'select', group: 'glass_transom',
+    options: [
+      { value: 'none', label: 'Нет' },
+      { value: 'solid', label: 'Глухая' },
+      { value: 'glazed', label: 'Остекленная' },
+      { value: 'false_transom', label: 'Фальш-фрамуга' },
+      { value: 'solid_false', label: 'Глухая фальш-фрамуга' },
+    ] },
+  { code: 'hinges', label: 'Петли', type: 'select', group: 'glass_transom',
+    options: [
+      { value: '2', label: '2 петли' },
+      { value: '3', label: '3 петли' },
+      { value: '2_hidden', label: '2 скрытые' },
+      { value: '3_hidden', label: '3 скрытые' },
+    ] },
+
+  // ===== TECHNICAL SPECIFIC =====
+  { code: 'metal_color', label: 'Цвет металла', type: 'text', group: 'tech_specific', placeholder: 'RAL 7024',
+    applicability: ['technical'] },
+  { code: 'lock_tech', label: 'Замок', type: 'select', group: 'tech_specific',
+    options: [
+      { value: 'doorlock', label: 'DoorLock' },
+      { value: 'kale152', label: 'Kale 152' },
+      { value: 'iseo', label: 'ISEO' },
+      { value: 'iseo_panic_1', label: 'ISEO антипаника 1 ств' },
+      { value: 'iseo_panic_2', label: 'ISEO антипаника 2 ств' },
+    ],
+    applicability: ['technical'] },
+  { code: 'hardware_tech', label: 'Фурнитура', type: 'select', group: 'tech_specific',
+    options: [{ value: 'standard', label: 'Стандартная' }, { value: 'reinforced', label: 'Усиленная' }],
+    applicability: ['technical'], note: 'Список уточняется' },
+  { code: 'vent_grille', label: 'Вент решетка', type: 'text', group: 'tech_specific', placeholder: 'Размер / тип',
+    applicability: ['technical'] },
+  { code: 'extra_hinge', label: 'Доп. шарнир', type: 'select', group: 'tech_specific',
+    options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }],
+    applicability: ['technical'] },
+  { code: 'door_closer', label: 'Доводчик', type: 'select', group: 'tech_specific',
+    options: [{ value: '1leaf', label: 'На 1 створку' }, { value: '2leaf', label: 'На 2 створки' }],
+    applicability: ['technical'] },
+  { code: 'rigid_packaging_tech', label: 'Жесткая упаковка', type: 'select', group: 'tech_specific',
+    options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }],
+    applicability: ['technical'] },
+
+  // ===== EXTERIOR FINISH (finish) =====
+  { code: 'ext_overlay', label: 'Наружная накладка', type: 'select', group: 'finish_exterior', required: true,
+    options: [
+      { value: 'none', label: 'Нет' },
+      { value: 'pvh', label: 'ПВХ' },
+      { value: 'paint', label: 'Покраска' },
+      { value: 'veneer_paint', label: 'Шпон + покраска' },
+      { value: 'veneer_tint', label: 'Шпон + тонировка' },
+    ],
+    applicability: ['finish'] },
+  { code: 'ext_overlay_thickness', label: 'Толщина нар. накладки', type: 'select', group: 'finish_exterior', unit: 'мм',
+    options: [{ value: '16', label: '16' }, { value: '12', label: '12' }, { value: '10', label: '10' }],
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'ext_pattern', label: 'Рисунок нар. накладки', type: 'text', group: 'finish_exterior', placeholder: 'Название рисунка',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'ext_color', label: 'Цвет нар. накладки', type: 'text', group: 'finish_exterior', placeholder: 'Цвет / код',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'mdf_insert', label: 'Вставка МДФ', type: 'text', group: 'finish_exterior', placeholder: 'Описание',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'metal_insert', label: 'Вставка металл', type: 'text', group: 'finish_exterior', placeholder: 'Описание',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'corona', label: 'Корона', type: 'text', group: 'finish_exterior', placeholder: 'Описание',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'patina_ext', label: 'Патина', type: 'text', group: 'finish_exterior', placeholder: 'Цвет / тип',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'mdf_trim', label: 'Наличник МДФ', type: 'select', group: 'finish_exterior',
+    options: [
+      { value: 'none', label: 'Нет' },
+      { value: 'full', label: 'Есть (полный)' },
+      { value: 'vertical_only', label: 'Только вертикальные' },
+      { value: 'no_lock_side', label: 'Замочная без нал.' },
+      { value: 'no_hinge_side', label: 'Шарнирная без нал.' },
+    ],
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'trim_color', label: 'Цвет наличников', type: 'text', group: 'finish_exterior', placeholder: 'Цвет',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+  { code: 'trim_description', label: 'Описание наличников', type: 'text', group: 'finish_exterior', placeholder: 'Доп. информация',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'ext_overlay', values: ['pvh','paint','veneer_paint','veneer_tint'], rule: 'show_when' }] },
+
+  // ===== INTERIOR FINISH (finish) =====
+  { code: 'int_overlay', label: 'Внутренняя накладка', type: 'select', group: 'finish_interior', required: true,
+    options: [
+      { value: 'pvh', label: 'ПВХ' },
+      { value: 'paint', label: 'Покраска' },
+      { value: 'veneer_paint', label: 'Шпон + покраска' },
+      { value: 'veneer_tint', label: 'Шпон + тонировка' },
+    ],
+    applicability: ['finish'] },
+  { code: 'int_overlay_thickness', label: 'Толщина вн. накладки', type: 'select', group: 'finish_interior', unit: 'мм',
+    options: [{ value: '16', label: '16' }, { value: '12', label: '12' }, { value: '10', label: '10' }, { value: '8', label: '8' }],
+    applicability: ['finish'] },
+  { code: 'int_pattern', label: 'Рисунок вн. накладки', type: 'text', group: 'finish_interior', placeholder: 'Название рисунка',
+    applicability: ['finish'] },
+  { code: 'int_color', label: 'Цвет вн. накладки', type: 'text', group: 'finish_interior', placeholder: 'Цвет / код',
+    applicability: ['finish'] },
+  { code: 'patina_int', label: 'Патина', type: 'text', group: 'finish_interior', placeholder: 'Цвет / тип',
+    applicability: ['finish'] },
+
+  // ===== HARDWARE (finish) =====
+  { code: 'lock_apt', label: 'Замок', type: 'select', group: 'hardware_apartment', required: true,
+    options: [
+      { value: 'kale_252_257', label: 'Kale 252+257' },
+      { value: 'guardian_full', label: 'Guardian 32.11+30.01' },
+      { value: 'cisa', label: 'Cisa' },
+      { value: 'kale_252', label: 'Kale 252' },
+      { value: 'guardian_32', label: 'Guardian 32.11' },
+      { value: 'other', label: 'Другое' },
+    ],
+    applicability: ['finish'] },
+  { code: 'lock_name_custom', label: 'Название замка', type: 'text', group: 'hardware_apartment', placeholder: 'Укажите замок',
+    applicability: ['finish'],
+    rules: [{ dependsOn: 'lock_apt', values: ['other'], rule: 'show_when' }] },
+  { code: 'cylinder', label: 'Цилиндр', type: 'select', group: 'hardware_apartment',
+    options: [{ value: 'key_key', label: 'Ключ-ключ' }, { value: 'key_knob', label: 'Ключ-поворотник' }],
+    applicability: ['finish'] },
+  { code: 'night_latch', label: 'Ночник', type: 'select', group: 'hardware_apartment',
+    options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }],
+    applicability: ['finish'] },
+  { code: 'handle_apt', label: 'Фурнитура / Ручка', type: 'select', group: 'hardware_apartment',
+    options: [
+      { value: 'lever', label: 'Нажимная ручка' },
+      { value: 'pull', label: 'Ручка-скоба' },
+      { value: 'knob', label: 'Кноб' },
+    ],
+    applicability: ['finish'], note: 'Список уточняется' },
+  { code: 'peephole', label: 'Глазок', type: 'select', group: 'hardware_apartment',
+    options: [{ value: 'black', label: 'Черный' }, { value: 'chrome', label: 'Хром' }, { value: 'gold', label: 'Золото' }],
+    applicability: ['finish'] },
+  { code: 'rigid_packaging_apt', label: 'Жесткая упаковка', type: 'select', group: 'hardware_apartment',
+    options: [{ value: 'yes', label: 'Есть' }, { value: 'no', label: 'Нет' }],
+    applicability: ['finish'] },
+
+  // ===== MARKING (all) =====
+  { code: 'marking_type', label: 'Тип маркировки', type: 'select', group: 'marking',
+    options: [
+      { value: 'none', label: 'Без маркировки' },
+      { value: 'auto', label: 'Авто (префикс + номер)' },
+      { value: 'manual', label: 'Вручную' },
+    ] },
+  { code: 'marking_prefix', label: 'Префикс', type: 'text', group: 'marking', placeholder: 'DZ',
+    rules: [{ dependsOn: 'marking_type', values: ['auto'], rule: 'show_when' }] },
+  { code: 'marking_start', label: 'Начальный номер', type: 'number', group: 'marking', placeholder: '1',
+    rules: [{ dependsOn: 'marking_type', values: ['auto'], rule: 'show_when' }] },
+  { code: 'marking_manual', label: 'Маркировка (через запятую)', type: 'text', group: 'marking', placeholder: 'A1, A2, A3', fullWidth: true,
+    rules: [{ dependsOn: 'marking_type', values: ['manual'], rule: 'show_when' }] },
+
+  // ===== NOTES (all) =====
+  { code: 'position_note', label: 'Примечание к позиции', type: 'textarea', group: 'notes', placeholder: 'Любые дополнительные комментарии...', fullWidth: true },
+];
+
+// ========== STATE ==========
+
+const state = {
+  cfgType: null,      // current configurator door type
+  cfgModel: null,     // current configurator model
+  values: {},
+  expandedGroups: {},
+  previouslyVisible: new Set(),
+  positions: [],      // [{id, doorType, model, values, status}]
+  editingIndex: null,  // null = new, number = editing existing
+  nextId: 1,
+  orderStatus: 'draft',
+};
+
+// ========== HELPERS ==========
+
+function getOptionLabel(field, value) {
+  if (!field || !field.options || !value) return value || '';
+  const opt = field.options.find(o => o.value === value);
+  return opt ? opt.label : value;
+}
+
+function getModelObj(doorType, modelCode) {
+  if (!doorType || !modelCode) return null;
+  return (MODELS[doorType] || []).find(m => m.code === modelCode);
+}
+
+function showToast(msg, duration = 2000) {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg;
+  t.classList.add('active');
+  setTimeout(() => t.classList.remove('active'), duration);
+}
+
+function getMarkingDisplay(pos) {
+  const v = pos.values;
+  if (!v.marking_type || v.marking_type === 'none') return '';
+  if (v.marking_type === 'manual') return v.marking_manual || '';
+  if (v.marking_type === 'auto') {
+    const prefix = v.marking_prefix || '';
+    const start = parseInt(v.marking_start) || 1;
+    const qty = parseInt(v.quantity) || 1;
+    if (qty === 1) return prefix + start;
+    const end = start + qty - 1;
+    return prefix + start + '-' + prefix + end;
+  }
+  return '';
+}
+
+function getMarkingPreviewFull(values) {
+  const prefix = values.marking_prefix || '';
+  const start = parseInt(values.marking_start) || 1;
+  const qty = parseInt(values.quantity) || 1;
+  if (qty <= 0) return '';
+  const items = [];
+  const maxShow = 6;
+  for (let i = 0; i < Math.min(qty, maxShow); i++) {
+    items.push(prefix + (start + i));
+  }
+  if (qty > maxShow) items.push('...' + prefix + (start + qty - 1));
+  return items.join(', ');
+}
+
+// ========== VISIBILITY ENGINE ==========
+
+function isFieldVisible(field) {
+  if (field.applicability && !field.applicability.includes(state.cfgType)) return false;
+  const group = GROUPS.find(g => g.code === field.group);
+  if (group && group.applicability && !group.applicability.includes(state.cfgType)) return false;
+  if (field.rules) {
+    for (const rule of field.rules) {
+      const currentVal = state.values[rule.dependsOn];
+      const matches = rule.values.includes(currentVal);
+      if (rule.rule === 'show_when' && !matches) return false;
+      if (rule.rule === 'hide_when' && matches) return false;
+    }
+  }
+  return true;
+}
+
+function getVisibleFieldsForGroup(groupCode) {
+  return FIELDS.filter(f => f.group === groupCode && isFieldVisible(f));
+}
+
+function isGroupVisible(group) {
+  if (!state.cfgType) return false;
+  if (group.applicability && !group.applicability.includes(state.cfgType)) return false;
+  return getVisibleFieldsForGroup(group.code).length > 0;
+}
+
+// ========== RENDERING ==========
+
+function renderPositionsTable() {
+  const body = document.getElementById('positions-body');
+  const count = document.getElementById('positions-count');
+  count.textContent = state.positions.length > 0 ? `(${state.positions.length})` : '';
+
+  if (state.positions.length === 0) {
+    body.innerHTML = '<div class="positions-empty">Нет позиций. Нажмите «+ Добавить позицию» или «Импорт Excel»</div>';
+    return;
+  }
+
+  const rows = state.positions.map((pos, idx) => {
+    const v = pos.values;
+    const typeObj = DOOR_TYPES.find(dt => dt.code === pos.doorType);
+    const modelObj = getModelObj(pos.doorType, pos.model);
+    const size = (v.height_block || v.width_block) ? `${v.height_block || '?'}x${v.width_block || '?'}` : '';
+    const leafCount = v.leaf_count || '';
+    const opening = getOptionLabel(FIELDS.find(f => f.code === 'opening'), v.opening);
+    const extOv = v.ext_overlay ? getOptionLabel(FIELDS.find(f => f.code === 'ext_overlay'), v.ext_overlay) : '';
+    const intOv = v.int_overlay ? getOptionLabel(FIELDS.find(f => f.code === 'int_overlay'), v.int_overlay) : '';
+    const lock = v.lock_apt ? getOptionLabel(FIELDS.find(f => f.code === 'lock_apt'), v.lock_apt) : (v.lock_tech ? getOptionLabel(FIELDS.find(f => f.code === 'lock_tech'), v.lock_tech) : '');
+    const marking = getMarkingDisplay(pos);
+    const qty = v.quantity || 1;
+    const isEditing = state.editingIndex === idx;
+    const statusObj = POSITION_STATUSES.find(s => s.code === pos.status) || POSITION_STATUSES[0];
+
+    const isLocked = pos.status === 'production';
+
+    return `<tr class="${isEditing ? 'editing' : ''}" onclick="editPosition(${idx})">
+      <td>${idx + 1}</td>
+      <td>${isLocked
+        ? `<span class="status-badge ${pos.status} locked">${statusObj.label}</span>`
+        : `<span class="status-badge ${pos.status}" onclick="event.stopPropagation();toggleStatusDropdown(${idx}, event)">
+        ${statusObj.label}
+        <div class="status-dropdown" id="status-dd-${idx}">
+          ${POSITION_STATUSES.map(s => `
+            <div class="status-dropdown-item" onclick="event.stopPropagation();changePositionStatus(${idx},'${s.code}')">
+              <span class="dot" style="background:${s.color}"></span> ${s.label}
+            </div>
+          `).join('')}
+        </div>
+      </span>`}</td>
+      <td>${typeObj ? typeObj.shortLabel : ''}</td>
+      <td>${modelObj ? modelObj.shortLabel : ''}</td>
+      <td>${size}</td>
+      <td>${leafCount}</td>
+      <td>${opening || ''}</td>
+      <td title="${extOv}">${extOv}</td>
+      <td title="${intOv}">${intOv}</td>
+      <td>${lock}</td>
+      <td title="${marking}">${marking || ''}</td>
+      <td><strong>${qty}</strong></td>
+      <td><div class="row-actions">
+        <button class="copy-row-btn" onclick="event.stopPropagation();copyPosition(${idx})" title="Копировать позицию">&#128203;</button>
+        <button class="delete-row-btn" onclick="event.stopPropagation();deletePosition(${idx})" title="Удалить">&#10005;</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = `<table class="positions-table">
+    <thead><tr>
+      <th>#</th><th>Статус</th><th>Тип</th><th>Модель</th><th>Размер</th><th>Ств.</th><th>Откр.</th><th>Нар.отд.</th><th>Вн.отд.</th><th>Замок</th><th>Маркировка</th><th>Кол</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderField(field) {
+  const visible = isFieldVisible(field);
+  const value = state.values[field.code] || '';
+  let inputHtml = '';
+
+  if (field.type === 'select') {
+    const optionsHtml = field.options.map(o =>
+      `<option value="${o.value}" ${value === o.value ? 'selected' : ''}>${o.label}</option>`
+    ).join('');
+    inputHtml = `<select class="field-select" data-code="${field.code}">
+      <option value="">-- Выберите --</option>${optionsHtml}</select>`;
+  } else if (field.type === 'textarea') {
+    inputHtml = `<textarea class="field-input" data-code="${field.code}" placeholder="${field.placeholder || ''}" rows="3" style="height:auto;padding:8px 10px;resize:vertical;">${value}</textarea>`;
+  } else if (field.type === 'number') {
+    inputHtml = `<input class="field-input" type="number" data-code="${field.code}" value="${value}" placeholder="${field.placeholder || ''}" />`;
+  } else {
+    inputHtml = `<input class="field-input" type="text" data-code="${field.code}" value="${value}" placeholder="${field.placeholder || ''}" />`;
+  }
+
+  const fullWidthClass = field.fullWidth ? ' full-width' : '';
+  return `<div class="field ${visible ? '' : 'hidden'}${fullWidthClass}" data-field="${field.code}">
+    <label class="field-label">
+      ${field.label}
+      ${field.required ? '<span class="required">*</span>' : ''}
+      ${field.unit ? `<span class="unit">(${field.unit})</span>` : ''}
+    </label>
+    ${inputHtml}
+    ${field.note ? `<span class="field-note">${field.note}</span>` : ''}
+  </div>`;
+}
+
+function renderForm() {
+  if (!state.cfgType || !state.cfgModel) {
+    document.getElementById('configurator-form').innerHTML = '';
+    return;
+  }
+
+  const formHtml = GROUPS.map(group => {
+    const visible = isGroupVisible(group);
+    const fields = FIELDS.filter(f => f.group === group.code);
+    const visibleCount = getVisibleFieldsForGroup(group.code).length;
+    const expanded = state.expandedGroups[group.code] !== false;
+
+    // Marking section: add preview
+    let extraContent = '';
+    if (group.code === 'marking' && state.values.marking_type === 'auto') {
+      const preview = getMarkingPreviewFull(state.values);
+      if (preview) {
+        extraContent = `<div class="marking-preview"><strong>Превью:</strong> ${preview}</div>`;
+      }
+    }
+
+    return `<div class="form-section ${visible ? '' : 'hidden'} ${expanded ? 'expanded' : ''}" data-group="${group.code}">
+      <div class="section-header" onclick="toggleGroup('${group.code}')">
+        <div class="section-title">
+          <span>${group.icon || ''}</span> ${group.label}
+          <span class="section-count">${visibleCount}</span>
+        </div>
+        <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+      <div class="section-body">
+        <div class="section-content">
+          ${fields.map(f => renderField(f)).join('')}
+          ${extraContent}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('configurator-form').innerHTML = formHtml;
+}
+
+function updateVisibility() {
+  const nowVisible = new Set();
+
+  GROUPS.forEach(group => {
+    const el = document.querySelector(`[data-group="${group.code}"]`);
+    if (!el) return;
+    el.classList.toggle('hidden', !isGroupVisible(group));
+  });
+
+  FIELDS.forEach(field => {
+    const el = document.querySelector(`[data-field="${field.code}"]`);
+    if (!el) return;
+    const visible = isFieldVisible(field);
+    const wasHidden = el.classList.contains('hidden');
+    el.classList.toggle('hidden', !visible);
+    if (visible) nowVisible.add(field.code);
+    if (visible && wasHidden && state.previouslyVisible.size > 0) {
+      el.classList.add('just-revealed');
+      setTimeout(() => el.classList.remove('just-revealed'), 800);
+    }
+  });
+
+  GROUPS.forEach(group => {
+    const el = document.querySelector(`[data-group="${group.code}"] .section-count`);
+    if (el) el.textContent = getVisibleFieldsForGroup(group.code).length;
+  });
+
+  // Update marking preview
+  const markingSection = document.querySelector('[data-group="marking"]');
+  if (markingSection && state.values.marking_type === 'auto') {
+    let previewEl = markingSection.querySelector('.marking-preview');
+    const preview = getMarkingPreviewFull(state.values);
+    if (preview) {
+      if (!previewEl) {
+        previewEl = document.createElement('div');
+        previewEl.className = 'marking-preview';
+        markingSection.querySelector('.section-content').appendChild(previewEl);
+      }
+      previewEl.innerHTML = `<strong>Превью:</strong> ${preview}`;
+      previewEl.style.display = '';
+    } else if (previewEl) {
+      previewEl.style.display = 'none';
+    }
+  } else {
+    const previewEl = document.querySelector('.marking-preview');
+    if (previewEl) previewEl.style.display = 'none';
+  }
+
+  state.previouslyVisible = nowVisible;
+}
+
+// ========== CONFIGURATOR TYPE/MODEL HANDLERS ==========
+
+function onCfgTypeChange(type) {
+  if (!type) {
+    state.cfgType = null;
+    state.cfgModel = null;
+    document.getElementById('cfg-model').innerHTML = '<option value="">-- Сначала выберите тип --</option>';
+    document.getElementById('configurator-form').innerHTML = '';
+    return;
+  }
+  state.cfgType = type;
+  state.cfgModel = null;
+  state.values = {};
+  state.expandedGroups = {};
+  state.previouslyVisible = new Set();
+
+  // Populate models
+  const modelSelect = document.getElementById('cfg-model');
+  const models = MODELS[type] || [];
+  modelSelect.innerHTML = '<option value="">-- Выберите модель --</option>' +
+    models.map(m => `<option value="${m.code}">${m.label}</option>`).join('');
+
+  document.getElementById('configurator-form').innerHTML = '';
+}
+
+function onCfgModelChange(modelCode) {
+  if (!modelCode) {
+    state.cfgModel = null;
+    document.getElementById('configurator-form').innerHTML = '';
+    return;
+  }
+  state.cfgModel = modelCode;
+  state.values = {};
+  state.expandedGroups = {};
+  state.previouslyVisible = new Set();
+
+  // Apply model defaults
+  applyModelDefaults();
+  renderForm();
+}
+
+function applyModelDefaults() {
+  const modelObj = getModelObj(state.cfgType, state.cfgModel);
+  if (modelObj && modelObj.noExterior) {
+    state.values['ext_overlay'] = 'none';
+  }
+}
+
+// ========== POSITION HANDLERS ==========
+
+function addPosition() {
+  state.editingIndex = null;
+  state.cfgType = null;
+  state.cfgModel = null;
+  state.values = {};
+  state.expandedGroups = {};
+  state.previouslyVisible = new Set();
+
+  document.getElementById('cfg-door-type').value = '';
+  document.getElementById('cfg-model').innerHTML = '<option value="">-- Сначала выберите тип --</option>';
+  document.getElementById('configurator-label').textContent = `Позиция #${state.positions.length + 1} (новая)`;
+  document.getElementById('configurator-form').innerHTML = '';
+  document.getElementById('configurator-panel').classList.remove('hidden');
+  renderPositionsTable();
+  document.getElementById('configurator-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function editPosition(idx) {
+  const pos = state.positions[idx];
+  if (!pos) return;
+  state.cfgType = pos.doorType;
+  state.cfgModel = pos.model;
+  state.values = { ...pos.values };
+  state.editingIndex = idx;
+  state.expandedGroups = {};
+  state.previouslyVisible = new Set();
+
+  // Set type select
+  document.getElementById('cfg-door-type').value = pos.doorType;
+  // Populate and set model select
+  const models = MODELS[pos.doorType] || [];
+  const modelSelect = document.getElementById('cfg-model');
+  modelSelect.innerHTML = '<option value="">-- Выберите модель --</option>' +
+    models.map(m => `<option value="${m.code}" ${m.code === pos.model ? 'selected' : ''}>${m.label}</option>`).join('');
+
+  document.getElementById('configurator-label').textContent = `Позиция #${idx + 1} (редактирование)`;
+  document.getElementById('configurator-panel').classList.remove('hidden');
+  renderForm();
+  renderPositionsTable();
+  document.getElementById('configurator-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function savePosition() {
+  if (!state.cfgType || !state.cfgModel) {
+    showToast('Выберите тип двери и модель', 2500);
+    return;
+  }
+
+  const posData = {
+    id: state.editingIndex !== null ? state.positions[state.editingIndex].id : state.nextId++,
+    doorType: state.cfgType,
+    model: state.cfgModel,
+    values: { ...state.values },
+    status: state.editingIndex !== null ? state.positions[state.editingIndex].status : 'draft',
+  };
+
+  if (state.editingIndex !== null) {
+    state.positions[state.editingIndex] = posData;
+    showToast(`Позиция #${state.editingIndex + 1} обновлена`);
+  } else {
+    state.positions.push(posData);
+    showToast(`Позиция #${state.positions.length} добавлена`);
+  }
+
+  state.editingIndex = null;
+  state.cfgType = null;
+  state.cfgModel = null;
+  state.values = {};
+  document.getElementById('configurator-panel').classList.add('hidden');
+  renderPositionsTable();
+}
+
+function cancelPosition() {
+  state.editingIndex = null;
+  state.cfgType = null;
+  state.cfgModel = null;
+  state.values = {};
+  document.getElementById('configurator-panel').classList.add('hidden');
+  renderPositionsTable();
+}
+
+function deletePosition(idx) {
+  state.positions.splice(idx, 1);
+  if (state.editingIndex === idx) {
+    state.editingIndex = null;
+    state.cfgType = null;
+    state.cfgModel = null;
+    state.values = {};
+    document.getElementById('configurator-panel').classList.add('hidden');
+  } else if (state.editingIndex !== null && state.editingIndex > idx) {
+    state.editingIndex--;
+  }
+  renderPositionsTable();
+  showToast('Позиция удалена');
+}
+
+function copyPosition(idx) {
+  const source = state.positions[idx];
+  if (!source) return;
+
+  const copy = {
+    id: state.nextId++,
+    doorType: source.doorType,
+    model: source.model,
+    values: { ...source.values },
+    status: 'draft',  // copy always starts as draft
+  };
+
+  // Insert right after source position
+  state.positions.splice(idx + 1, 0, copy);
+
+  // Open copy for editing
+  state.editingIndex = idx + 1;
+  state.cfgType = copy.doorType;
+  state.cfgModel = copy.model;
+  state.values = { ...copy.values };
+  state.expandedGroups = {};
+  state.previouslyVisible = new Set();
+
+  // Set type select
+  document.getElementById('cfg-door-type').value = copy.doorType;
+  const models = MODELS[copy.doorType] || [];
+  const modelSelect = document.getElementById('cfg-model');
+  modelSelect.innerHTML = '<option value="">-- Выберите модель --</option>' +
+    models.map(m => `<option value="${m.code}" ${m.code === copy.model ? 'selected' : ''}>${m.label}</option>`).join('');
+
+  document.getElementById('configurator-label').textContent = `Позиция #${idx + 2} (копия #${idx + 1})`;
+  document.getElementById('configurator-panel').classList.remove('hidden');
+  renderForm();
+  renderPositionsTable();
+  showToast(`Позиция #${idx + 1} скопирована`);
+  document.getElementById('configurator-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ========== STATUS HANDLERS ==========
+
+function toggleStatusDropdown(idx, event) {
+  const pos = state.positions[idx];
+  // Block if already in production
+  if (pos && pos.status === 'production') return;
+
+  // Close all other dropdowns
+  document.querySelectorAll('.status-dropdown').forEach(dd => dd.classList.remove('open'));
+  const dd = document.getElementById(`status-dd-${idx}`);
+  if (dd) dd.classList.toggle('open');
+}
+
+function changePositionStatus(idx, statusCode) {
+  const pos = state.positions[idx];
+  if (!pos) return;
+
+  // Block changes from production (irreversible)
+  if (pos.status === 'production') return;
+
+  // If target is production — validate + confirm
+  if (statusCode === 'production') {
+    if (pos.status !== 'agreed') {
+      showToast('Сначала переведите позицию в статус «Согласован»', 3000);
+      renderPositionsTable();
+      return;
+    }
+    confirmProduction(idx);
+    return;
+  }
+
+  // draft <-> agreed: free switch
+  pos.status = statusCode;
+  const statusObj = POSITION_STATUSES.find(s => s.code === statusCode);
+  showToast(`Позиция #${idx + 1}: ${statusObj.label}`);
+  renderPositionsTable();
+}
+
+function confirmProduction(idx) {
+  const errors = validatePosition(idx);
+  if (errors.length > 0) {
+    showToast(`<div class="toast-errors"><strong>Нельзя отправить на производство:</strong><ul>${errors.map(e => '<li>' + e + '</li>').join('')}</ul></div>`, 5000);
+    renderPositionsTable();
+    return;
+  }
+
+  // Check for duplicate positions
+  const duplicates = findDuplicatePositions(idx);
+  const dupWarning = document.getElementById('production-dup-warning');
+  if (duplicates.length > 0) {
+    const dupNums = duplicates.map(d => '#' + (d + 1)).join(', ');
+    dupWarning.innerHTML = `&#9888; Идентична позиции ${dupNums}. Дубликат будет запущен отдельно.`;
+    dupWarning.style.display = '';
+  } else {
+    dupWarning.style.display = 'none';
+  }
+
+  // Show confirmation modal
+  const modal = document.getElementById('production-modal');
+  modal.classList.add('active');
+  const btn = document.getElementById('confirm-production-btn');
+  // Replace onclick to bind current idx
+  btn.onclick = function() {
+    state.positions[idx].status = 'production';
+    modal.classList.remove('active');
+
+    // Auto-set order status to "active" when any position goes to production
+    if (state.orderStatus === 'draft' || state.orderStatus === 'agreed') {
+      state.orderStatus = 'active';
+      document.getElementById('order-status').value = 'active';
+      showToast(`Позиция #${idx + 1}: В производстве. Заказ переведён в «Активен»`, 3000);
+    } else {
+      showToast(`Позиция #${idx + 1}: В производстве`);
+    }
+    renderPositionsTable();
+  };
+}
+
+function findDuplicatePositions(idx) {
+  const pos = state.positions[idx];
+  const duplicates = [];
+
+  // Key fields to compare (ignoring notes and marking)
+  const compareKeys = FIELDS
+    .filter(f => f.group !== 'notes' && f.group !== 'marking')
+    .map(f => f.code);
+
+  state.positions.forEach((other, i) => {
+    if (i === idx) return;
+    if (other.doorType !== pos.doorType || other.model !== pos.model) return;
+
+    // Compare all key field values
+    const allMatch = compareKeys.every(key => {
+      const a = pos.values[key] || '';
+      const b = other.values[key] || '';
+      return a === b;
+    });
+
+    if (allMatch) duplicates.push(i);
+  });
+
+  return duplicates;
+}
+
+function closeProductionModal(e) {
+  if (e.target === e.currentTarget) e.target.classList.remove('active');
+}
+
+function validatePosition(idx) {
+  const pos = state.positions[idx];
+  const errors = [];
+  const v = pos.values;
+
+  // Type + Model
+  if (!pos.doorType) errors.push('Не выбран тип двери');
+  if (!pos.model) errors.push('Не выбрана модель');
+
+  // Check all required visible fields
+  FIELDS.forEach(field => {
+    if (!field.required) return;
+    // Check applicability
+    if (field.applicability && !field.applicability.includes(pos.doorType)) return;
+    // Check group applicability
+    const group = GROUPS.find(g => g.code === field.group);
+    if (group && group.applicability && !group.applicability.includes(pos.doorType)) return;
+    // Check visibility rules with position values
+    if (field.rules) {
+      for (const rule of field.rules) {
+        const currentVal = v[rule.dependsOn];
+        const matches = rule.values.includes(currentVal);
+        if (rule.rule === 'show_when' && !matches) return;
+        if (rule.rule === 'hide_when' && matches) return;
+      }
+    }
+    // Field is visible and required — check value
+    if (!v[field.code] || v[field.code] === '') {
+      errors.push(field.label);
+    }
+  });
+
+  // Marking validation
+  if (v.marking_type === 'auto') {
+    if (!v.marking_prefix) errors.push('Маркировка: префикс');
+    if (!v.marking_start) errors.push('Маркировка: начальный номер');
+  }
+  if (v.marking_type === 'manual') {
+    if (!v.marking_manual) errors.push('Маркировка: текст маркировки');
+  }
+
+  return errors;
+}
+
+function hasProductionPositions() {
+  return state.positions.some(p => p.status === 'production');
+}
+
+function changeOrderStatus(status) {
+  const inProduction = hasProductionPositions();
+
+  // Block downgrade to draft/agreed if positions in production
+  if (inProduction && (status === 'draft' || status === 'agreed')) {
+    showToast('Нельзя вернуть в черновик/согласован — есть позиции в производстве', 3000);
+    document.getElementById('order-status').value = state.orderStatus;
+    return;
+  }
+
+  // Block cancellation if positions in production
+  if (status === 'cancelled' && inProduction) {
+    showToast('Нельзя отменить заказ — есть позиции в производстве', 3000);
+    document.getElementById('order-status').value = state.orderStatus;
+    return;
+  }
+
+  state.orderStatus = status;
+  showToast(`Статус заказа: ${document.getElementById('order-status').selectedOptions[0].text}`);
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.status-badge')) {
+    document.querySelectorAll('.status-dropdown').forEach(dd => dd.classList.remove('open'));
+  }
+});
+
+// ========== FORM HANDLERS ==========
+
+function toggleGroup(groupCode) {
+  const el = document.querySelector(`[data-group="${groupCode}"]`);
+  if (!el) return;
+  state.expandedGroups[groupCode] = !el.classList.contains('expanded');
+  el.classList.toggle('expanded');
+}
+
+function handleFieldChange(e) {
+  const code = e.target.dataset.code;
+  if (!code) return;
+  state.values[code] = e.target.value;
+
+  // Clear dependent values
+  FIELDS.forEach(f => {
+    if (f.rules) {
+      for (const rule of f.rules) {
+        if (rule.dependsOn === code) {
+          const visible = isFieldVisible(f);
+          if (!visible && state.values[f.code]) {
+            state.values[f.code] = '';
+            const input = document.querySelector(`[data-code="${f.code}"]`);
+            if (input) input.value = '';
+          }
+        }
+      }
+    }
+  });
+
+  updateVisibility();
+}
+
+function showExcelStub() {
+  showToast('&#128229; Импорт из Excel — в разработке', 3000);
+}
+
+function closeModal(e) {
+  if (e.target === e.currentTarget) e.target.classList.remove('active');
+}
+
+function copyJSON() {
+  const text = document.getElementById('json-output').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.modal .btn-secondary');
+    btn.textContent = 'Скопировано!';
+    setTimeout(() => { btn.textContent = 'Копировать'; }, 1500);
+  });
+}
+
+// ========== INIT ==========
+
+document.getElementById('configurator-form').addEventListener('change', handleFieldChange);
+document.getElementById('configurator-form').addEventListener('input', e => {
+  if (e.target.type === 'number' || e.target.type === 'text' || e.target.tagName === 'TEXTAREA') handleFieldChange(e);
+});
+
+renderPositionsTable();
+</script>
+
+</body>
+</html>

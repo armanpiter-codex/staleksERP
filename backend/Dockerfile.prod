@@ -1,0 +1,32 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies for asyncpg
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry==1.8.2
+
+# Configure Poetry: no virtualenv (we're in Docker)
+RUN poetry config virtualenvs.create false
+
+# Copy dependency files first (for layer caching)
+COPY pyproject.toml poetry.lock* ./
+
+# Install only production dependencies
+RUN poetry install --only main --no-root --no-interaction
+
+# Copy application code
+COPY . .
+
+RUN useradd --system --uid 1001 --no-create-home appuser
+USER appuser
+
+EXPOSE 8000
+
+# Run with production settings (no --reload)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
