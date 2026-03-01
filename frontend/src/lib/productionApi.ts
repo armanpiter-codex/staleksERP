@@ -1,9 +1,13 @@
 /**
  * Production API — axios wrappers.
  * Sprint 13: Stages, Routes, Queue, Door Movement.
+ * Sprint 16: Workshops, phased routes, workshop-aware movement.
  */
 import api from "@/lib/api";
 import type {
+  ProductionWorkshop,
+  ProductionWorkshopCreate,
+  ProductionWorkshopUpdate,
   ProductionStage,
   ProductionStageCreate,
   ProductionStageUpdate,
@@ -12,7 +16,9 @@ import type {
   ProductionQueueResponse,
   QueueParams,
   StageCounter,
+  WorkshopCounter,
   ProductionDoor,
+  WorkshopProgress,
   MoveDoorPayload,
   MoveDoorToStagePayload,
   DoorStageHistory,
@@ -21,6 +27,35 @@ import type {
 } from "@/types/production";
 
 const BASE = "/production";
+
+// ─── Workshops CRUD ─────────────────────────────────────────────────────────
+
+export async function listWorkshops(includeInactive = false): Promise<ProductionWorkshop[]> {
+  const { data } = await api.get<ProductionWorkshop[]>(`${BASE}/workshops`, {
+    params: { include_inactive: includeInactive },
+  });
+  return data;
+}
+
+export async function createWorkshop(payload: ProductionWorkshopCreate): Promise<ProductionWorkshop> {
+  const { data } = await api.post<ProductionWorkshop>(`${BASE}/workshops`, payload);
+  return data;
+}
+
+export async function updateWorkshop(
+  workshopId: string,
+  payload: ProductionWorkshopUpdate,
+): Promise<ProductionWorkshop> {
+  const { data } = await api.patch<ProductionWorkshop>(`${BASE}/workshops/${workshopId}`, payload);
+  return data;
+}
+
+export async function reorderWorkshops(workshopIds: string[]): Promise<ProductionWorkshop[]> {
+  const { data } = await api.patch<ProductionWorkshop[]>(`${BASE}/workshops/reorder`, {
+    workshop_ids: workshopIds,
+  });
+  return data;
+}
 
 // ─── Stages CRUD ────────────────────────────────────────────────────────────
 
@@ -85,6 +120,11 @@ export async function getStageCounters(): Promise<StageCounter[]> {
   return data;
 }
 
+export async function getWorkshopCounters(): Promise<WorkshopCounter[]> {
+  const { data } = await api.get<WorkshopCounter[]>(`${BASE}/queue/workshop-counters`);
+  return data;
+}
+
 // ─── Door Movement ──────────────────────────────────────────────────────────
 
 export async function moveDoorNext(
@@ -122,6 +162,11 @@ export async function moveDoorToStage(
 
 export async function getDoorHistory(doorId: string): Promise<DoorStageHistory[]> {
   const { data } = await api.get<DoorStageHistory[]>(`${BASE}/doors/${doorId}/history`);
+  return data;
+}
+
+export async function getDoorProgress(doorId: string): Promise<WorkshopProgress[]> {
+  const { data } = await api.get<WorkshopProgress[]>(`${BASE}/doors/${doorId}/progress`);
   return data;
 }
 

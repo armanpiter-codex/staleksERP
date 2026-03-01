@@ -1,6 +1,7 @@
 """Print form data assembly for production doors.
 
 Sprint 14 — assembles enriched data for door print cards and stage summaries.
+Sprint 16 — workshop/phase-aware progress display.
 """
 import uuid
 from datetime import datetime, timezone
@@ -12,7 +13,12 @@ from sqlalchemy.orm import selectinload
 from app.common.exceptions import NotFoundException
 from app.configurator.models import DoorConfiguration, DoorFieldDefinition, DoorModel
 from app.orders.models import DoorStatus, Order, OrderDoor, OrderItem
-from app.production.models import DoorStageHistory, ProductionRoute, ProductionStage
+from app.production.models import (
+    DoorStageHistory,
+    DoorWorkshopProgress,
+    ProductionRoute,
+    ProductionStage,
+)
 from app.production.schemas import (
     DoorPrintDataSchema,
     PrintFieldGroupSchema,
@@ -121,9 +127,6 @@ async def get_door_print_data(
     )
     field_defs = list(field_result.scalars().all())
 
-    # Build field code -> definition lookup
-    field_map = {fd.code: fd for fd in field_defs}
-
     # 5. Resolve core configuration fields
     config_values = config.values if config else {}
     groups_dict: dict[str, list[PrintFieldValueSchema]] = {}
@@ -153,7 +156,6 @@ async def get_door_print_data(
         groups_dict[key].append(fv)
 
     # Build sorted field groups
-    # Group sort order: use the first field's group_code sort
     group_order = {}
     for fd in field_defs:
         if fd.group_code not in group_order:
@@ -189,7 +191,7 @@ async def get_door_print_data(
             group_label=fd.group_label,
         ))
 
-    # 7. Fetch route and stage history for progress
+    # 7. Fetch route with workshop info and build phased progress
     route_stages: list[RouteStageForPrintSchema] = []
     route_total = 0
     route_current = 0
@@ -198,11 +200,26 @@ async def get_door_print_data(
         route_result = await db.execute(
             select(ProductionRoute)
             .where(ProductionRoute.door_model_id == door_model_id)
-            .options(selectinload(ProductionRoute.stage))
-            .order_by(ProductionRoute.step_order)
+            .options(
+                selectinload(ProductionRoute.stage),
+                selectinload(ProductionRoute.workshop),
+            )
+            .order_by(ProductionRoute.phase, ProductionRoute.step_order)
         )
         route_steps = list(route_result.scalars().all())
         route_total = len(route_steps)
+
+        # Fetch workshop progress for this door
+        progress_result = await db.execute(
+            select(DoorWorkshopProgress)
+            .where(DoorWorkshopProgress.door_id == door_id)
+            .options(selectinload(DoorWorkshopProgress.stage))
+        )
+        progress_entries = list(progress_result.scalars().all())
+        # Map: (workshop_id, phase) → progress
+        progress_map: dict[tuple, DoorWorkshopProgress] = {}
+        for p in progress_entries:
+            progress_map[(p.workshop_id, p.phase)] = p
 
         # Fetch stage history for this door
         history_result = await db.execute(
@@ -212,11 +229,29 @@ async def get_door_print_data(
         completed_stage_ids = {row[0] for row in history_result.all()}
 
         for i, step in enumerate(route_steps):
-            is_current = (step.stage_id == door.current_stage_id) if door.current_stage_id else False
-            is_completed = step.stage_id in completed_stage_ids and not is_current
+            is_current = False
+            is_completed = False
+
+            # Check via workshop progress if available
+            prog_key = (step.workshop_id, step.phase) if step.workshop_id else None
+            prog = progress_map.get(prog_key) if prog_key else None
+
+            if prog and prog.current_stage_id == step.stage_id:
+                is_current = True
+            elif step.stage_id == door.current_stage_id and not prog:
+                # Legacy fallback
+                is_current = True
+
+            if step.stage_id in completed_stage_ids and not is_current:
+                is_completed = True
 
             if is_current:
                 route_current = i + 1
+
+            # Check if entire track is completed
+            if prog and prog.status == "completed":
+                is_completed = True
+                is_current = False
 
             route_stages.append(RouteStageForPrintSchema(
                 stage_name=step.stage.name if step.stage else f"Stage {step.step_order}",
@@ -224,6 +259,9 @@ async def get_door_print_data(
                 is_completed=is_completed,
                 is_current=is_current,
                 is_optional=step.is_optional,
+                workshop_name=step.workshop.name if step.workshop else None,
+                workshop_color=step.workshop.color if step.workshop else None,
+                phase=step.phase,
             ))
 
     # Current stage name
@@ -269,16 +307,19 @@ async def get_stage_print_data(
 ) -> StagePrintDataSchema:
     """Assemble print summary for all doors at a production stage."""
 
-    # Fetch stage
+    # Fetch stage with workshop
     stage_result = await db.execute(
-        select(ProductionStage).where(ProductionStage.id == stage_id)
+        select(ProductionStage)
+        .where(ProductionStage.id == stage_id)
+        .options(selectinload(ProductionStage.workshop))
     )
     stage = stage_result.scalar_one_or_none()
     if not stage:
         raise NotFoundException("Stage not found")
 
-    # Fetch doors at this stage
-    rows = (
+    # Fetch doors at this stage — check both legacy current_stage_id and workshop progress
+    # Legacy query (doors with current_stage_id set directly)
+    legacy_rows = (
         await db.execute(
             select(
                 OrderDoor.internal_number,
@@ -300,8 +341,48 @@ async def get_stage_print_data(
         )
     ).all()
 
+    # Workshop progress query (doors where workshop progress points to this stage)
+    progress_rows = (
+        await db.execute(
+            select(
+                OrderDoor.internal_number,
+                OrderDoor.marking,
+                OrderDoor.priority,
+                Order.order_number,
+                DoorConfiguration.door_model_id,
+                DoorConfiguration.values,
+            )
+            .join(OrderItem, OrderDoor.order_item_id == OrderItem.id)
+            .join(Order, OrderItem.order_id == Order.id)
+            .join(DoorConfiguration, OrderItem.configuration_id == DoorConfiguration.id)
+            .join(
+                DoorWorkshopProgress,
+                DoorWorkshopProgress.door_id == OrderDoor.id,
+            )
+            .where(
+                OrderDoor.status == DoorStatus.in_production,
+                DoorWorkshopProgress.current_stage_id == stage_id,
+                DoorWorkshopProgress.status == "active",
+            )
+            .order_by(OrderDoor.priority.desc(), OrderDoor.created_at)
+            .limit(limit)
+        )
+    ).all()
+
+    # Merge and deduplicate by internal_number
+    seen = set()
+    all_rows = []
+    for row in progress_rows:
+        if row.internal_number not in seen:
+            seen.add(row.internal_number)
+            all_rows.append(row)
+    for row in legacy_rows:
+        if row.internal_number not in seen:
+            seen.add(row.internal_number)
+            all_rows.append(row)
+
     # Fetch model labels in batch
-    model_ids = {r.door_model_id for r in rows if r.door_model_id}
+    model_ids = {r.door_model_id for r in all_rows if r.door_model_id}
     model_labels: dict[uuid.UUID, str] = {}
     if model_ids:
         models_result = await db.execute(
@@ -310,9 +391,8 @@ async def get_stage_print_data(
         model_labels = {row.id: row.label for row in models_result.all()}
 
     doors: list[StagePrintDoorSchema] = []
-    for row in rows:
+    for row in all_rows:
         config_vals = row.values or {}
-        # Extract height/width — try common field codes
         height = config_vals.get("height") or config_vals.get("height_mm")
         width = config_vals.get("width") or config_vals.get("width_mm")
 
@@ -329,6 +409,7 @@ async def get_stage_print_data(
     return StagePrintDataSchema(
         stage_name=stage.name,
         stage_code=stage.code,
+        workshop_name=stage.workshop.name if stage.workshop else None,
         print_date=datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M"),
         total_doors=len(doors),
         doors=doors,

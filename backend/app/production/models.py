@@ -18,11 +18,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
-# ─── ProductionStage ──────────────────────────────────────────────────────────
+# ─── ProductionWorkshop ──────────────────────────────────────────────────────
 
-class ProductionStage(Base):
-    """Этап/цех производства (Проектирование, Металл, МДФ, Сборка, ОТК и т.д.)"""
-    __tablename__ = "production_stages"
+class ProductionWorkshop(Base):
+    """Цех производства (Металл, МДФ, Сборка и т.д.)"""
+    __tablename__ = "production_workshops"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -30,6 +30,7 @@ class ProductionStage(Base):
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    color: Mapped[str | None] = mapped_column(String(7))
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
@@ -41,15 +42,52 @@ class ProductionStage(Base):
     )
 
     __table_args__ = (
+        Index("idx_production_workshops_code", "code"),
+        Index("idx_production_workshops_sort_order", "sort_order"),
+    )
+
+
+# ─── ProductionStage ──────────────────────────────────────────────────────────
+
+class ProductionStage(Base):
+    """Этап производства (Резка, Сварка, МДФ прессовка, ОТК и т.д.)"""
+    __tablename__ = "production_stages"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Workshop FK (Sprint 16)
+    workshop_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("production_workshops.id", ondelete="SET NULL")
+    )
+    workshop: Mapped["ProductionWorkshop | None"] = relationship(
+        "ProductionWorkshop", lazy="selectin"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
         Index("idx_production_stages_code", "code"),
         Index("idx_production_stages_sort_order", "sort_order"),
+        Index("idx_production_stages_workshop", "workshop_id"),
     )
 
 
 # ─── ProductionRoute ─────────────────────────────────────────────────────────
 
 class ProductionRoute(Base):
-    """Шаг маршрута: привязка этапа к модели двери с порядковым номером."""
+    """Шаг маршрута: привязка этапа к модели двери с фазой и цехом."""
     __tablename__ = "production_routes"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -65,18 +103,68 @@ class ProductionRoute(Base):
     is_optional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
 
+    # Phase & Workshop (Sprint 16)
+    phase: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    workshop_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("production_workshops.id", ondelete="SET NULL")
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
     stage: Mapped["ProductionStage"] = relationship("ProductionStage", lazy="selectin")
+    workshop: Mapped["ProductionWorkshop | None"] = relationship(
+        "ProductionWorkshop", lazy="selectin"
+    )
 
     __table_args__ = (
         UniqueConstraint("door_model_id", "stage_id", name="uq_route_model_stage"),
-        UniqueConstraint("door_model_id", "step_order", name="uq_route_model_step"),
+        Index("uq_route_model_phase_workshop_step", "door_model_id", "phase", "workshop_id", "step_order", unique=True),
         Index("idx_production_routes_model_id", "door_model_id"),
         Index("idx_production_routes_stage_id", "stage_id"),
+        Index("idx_production_routes_phase", "door_model_id", "phase"),
+    )
+
+
+# ─── DoorWorkshopProgress ───────────────────────────────────────────────────
+
+class DoorWorkshopProgress(Base):
+    """Прогресс двери по цеху/фазе: отслеживание параллельных треков."""
+    __tablename__ = "door_workshop_progress"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    door_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("order_doors.id", ondelete="CASCADE"), nullable=False
+    )
+    workshop_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("production_workshops.id", ondelete="CASCADE"), nullable=False
+    )
+    phase: Mapped[int] = mapped_column(Integer, nullable=False)
+    current_stage_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("production_stages.id", ondelete="SET NULL")
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    workshop: Mapped["ProductionWorkshop"] = relationship("ProductionWorkshop", lazy="selectin")
+    current_stage: Mapped["ProductionStage | None"] = relationship("ProductionStage", lazy="selectin")
+
+    __table_args__ = (
+        UniqueConstraint("door_id", "workshop_id", "phase", name="uq_door_workshop_phase"),
+        Index("idx_dwp_door", "door_id"),
+        Index("idx_dwp_stage", "current_stage_id"),
+        Index("idx_dwp_status", "status"),
+        Index("idx_dwp_workshop", "workshop_id"),
     )
 
 

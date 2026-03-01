@@ -7,14 +7,16 @@ import {
   ProductionQueueView,
   StagesManagement,
   RoutesManagement,
+  WorkshopsManagement,
 } from "@/components/production";
 
-type ProductionTab = "queue" | "stages" | "routes";
+type ProductionTab = "queue" | "stages" | "routes" | "workshops";
 
 const TABS = [
   { key: "queue", label: "Очередь" },
   { key: "stages", label: "Этапы" },
   { key: "routes", label: "Маршруты" },
+  { key: "workshops", label: "Цеха" },
 ];
 
 export default function ProductionPage() {
@@ -32,6 +34,7 @@ export default function ProductionPage() {
         {activeTab === "queue" && <ProductionQueueView />}
         {activeTab === "stages" && <StagesManagement />}
         {activeTab === "routes" && <RoutesManagement />}
+        {activeTab === "workshops" && <WorkshopsManagement />}
       </div>
     </div>
   );

@@ -1,8 +1,44 @@
 import uuid
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+# ─── Workshop schemas ────────────────────────────────────────────────────────
+
+class ProductionWorkshopSchema(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    description: str | None
+    color: str | None
+    sort_order: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkshopCreateSchema(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-z][a-z0-9_]*$")
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str | None = None
+    color: str | None = Field(None, max_length=7)
+    sort_order: int = Field(0, ge=0)
+    is_active: bool = True
+
+
+class WorkshopUpdateSchema(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    color: str | None = Field(None, max_length=7)
+    sort_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+class ReorderWorkshopsSchema(BaseModel):
+    workshop_ids: list[uuid.UUID] = Field(..., min_length=1)
 
 
 # ─── Stage schemas ────────────────────────────────────────────────────────────
@@ -14,6 +50,10 @@ class ProductionStageSchema(BaseModel):
     description: str | None
     sort_order: int
     is_active: bool
+    workshop_id: uuid.UUID | None = None
+    workshop_name: str | None = None
+    workshop_code: str | None = None
+    workshop_color: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -26,6 +66,7 @@ class ProductionStageCreateSchema(BaseModel):
     description: str | None = None
     sort_order: int = Field(0, ge=0)
     is_active: bool = True
+    workshop_id: uuid.UUID | None = None
 
 
 class ProductionStageUpdateSchema(BaseModel):
@@ -33,6 +74,7 @@ class ProductionStageUpdateSchema(BaseModel):
     description: str | None = None
     sort_order: int | None = Field(None, ge=0)
     is_active: bool | None = None
+    workshop_id: uuid.UUID | None = None
 
 
 class ReorderStagesSchema(BaseModel):
@@ -50,17 +92,40 @@ class RouteStepSchema(BaseModel):
     step_order: int
     is_optional: bool
     notes: str | None
+    phase: int = 1
+    workshop_id: uuid.UUID | None = None
+    workshop_name: str | None = None
+    workshop_code: str | None = None
+    workshop_color: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
+class RouteTrackSchema(BaseModel):
+    """A workshop track within a phase."""
+    workshop_id: uuid.UUID
+    workshop_name: str
+    workshop_code: str
+    workshop_color: str | None = None
+    steps: list[RouteStepSchema]
+
+
+class RoutePhaseSchema(BaseModel):
+    """A phase with parallel workshop tracks."""
+    phase: int
+    tracks: list[RouteTrackSchema]
+
+
 class ProductionRouteSchema(BaseModel):
-    """Full route for a door model."""
+    """Full route for a door model (phase-grouped + flat steps)."""
     door_model_id: uuid.UUID
     door_model_code: str
     door_model_label: str
-    steps: list[RouteStepSchema]
+    phases: list[RoutePhaseSchema] = []
+    steps: list[RouteStepSchema] = []  # flat list for backward compat
 
+
+# ─── Route input schemas ─────────────────────────────────────────────────────
 
 class RouteStepInput(BaseModel):
     stage_id: uuid.UUID
@@ -69,9 +134,32 @@ class RouteStepInput(BaseModel):
     notes: str | None = None
 
 
+class RoutePhaseInput(BaseModel):
+    phase: int = Field(..., ge=1)
+    workshop_id: uuid.UUID
+    stages: list[RouteStepInput] = Field(..., min_length=1)
+
+
 class SetRouteSchema(BaseModel):
-    """Bulk-set route steps for a model (replaces all existing)."""
-    steps: list[RouteStepInput] = Field(default_factory=list)
+    """Phase-based route definition (replaces all existing steps)."""
+    phases: list[RoutePhaseInput] = Field(default_factory=list)
+
+
+# ─── Workshop progress schemas ───────────────────────────────────────────────
+
+class WorkshopProgressSchema(BaseModel):
+    """Progress of a door within a specific workshop track."""
+    workshop_id: uuid.UUID
+    workshop_name: str
+    workshop_code: str
+    workshop_color: str | None = None
+    phase: int
+    current_stage_id: uuid.UUID | None = None
+    current_stage_name: str | None = None
+    current_stage_code: str | None = None
+    status: str  # 'pending' | 'active' | 'completed' | 'skipped'
+    track_total_steps: int = 0
+    track_current_step: int = 0
 
 
 # ─── Queue schemas ────────────────────────────────────────────────────────────
@@ -94,6 +182,10 @@ class ProductionDoorSchema(BaseModel):
     route_current_step: int
     notes: str | None
     created_at: datetime
+    # Sprint 16: parallel tracks
+    current_phase: int | None = None
+    total_phases: int = 0
+    workshop_progress: list[WorkshopProgressSchema] = []
 
 
 class StageCounterSchema(BaseModel):
@@ -101,22 +193,38 @@ class StageCounterSchema(BaseModel):
     stage_name: str
     stage_code: str
     count: int
+    workshop_id: uuid.UUID | None = None
+    workshop_name: str | None = None
+    workshop_code: str | None = None
+    workshop_color: str | None = None
+
+
+class WorkshopCounterSchema(BaseModel):
+    workshop_id: uuid.UUID | None
+    workshop_name: str
+    workshop_code: str
+    workshop_color: str | None = None
+    count: int
+    stages: list[StageCounterSchema] = []
 
 
 class ProductionQueueResponse(BaseModel):
     items: list[ProductionDoorSchema]
     total: int
     counters: list[StageCounterSchema]
+    workshop_counters: list[WorkshopCounterSchema] = []
 
 
 # ─── Movement schemas ────────────────────────────────────────────────────────
 
 class MoveDoorStageSchema(BaseModel):
+    workshop_id: uuid.UUID | None = None
     notes: str | None = None
 
 
 class MoveDoorToStageSchema(BaseModel):
     stage_id: uuid.UUID
+    workshop_id: uuid.UUID | None = None
     notes: str | None = None
 
 
@@ -155,6 +263,9 @@ class RouteStageForPrintSchema(BaseModel):
     is_completed: bool
     is_current: bool
     is_optional: bool = False
+    workshop_name: str | None = None
+    workshop_color: str | None = None
+    phase: int = 1
 
 
 class DoorPrintDataSchema(BaseModel):
@@ -205,6 +316,7 @@ class StagePrintDoorSchema(BaseModel):
 class StagePrintDataSchema(BaseModel):
     stage_name: str
     stage_code: str
+    workshop_name: str | None = None
     print_date: str
     total_doors: int
     doors: list[StagePrintDoorSchema]

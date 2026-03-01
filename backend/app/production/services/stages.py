@@ -34,7 +34,6 @@ async def create_stage(
     db: AsyncSession,
     data: ProductionStageCreateSchema,
 ) -> ProductionStage:
-    # Check uniqueness
     existing = await db.execute(
         select(ProductionStage).where(ProductionStage.code == data.code)
     )

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Pencil, GripVertical, Loader2, Check, X } from "lucide-react";
 import clsx from "clsx";
-import { listStages, createStage, updateStage, reorderStages } from "@/lib/productionApi";
-import type { ProductionStage, ProductionStageCreate } from "@/types/production";
+import { listStages, createStage, updateStage, reorderStages, listWorkshops } from "@/lib/productionApi";
+import type { ProductionStage, ProductionStageCreate, ProductionWorkshop } from "@/types/production";
 import { apiError } from "@/lib/utils";
 import { ErrorAlert, Modal, Spinner } from "@/components/ui";
 
@@ -14,6 +14,7 @@ interface Props {
 
 export function StagesManagement({ onRefresh }: Props) {
   const [stages, setStages] = useState<ProductionStage[]>([]);
+  const [workshops, setWorkshops] = useState<ProductionWorkshop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -24,11 +25,13 @@ export function StagesManagement({ onRefresh }: Props) {
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newWorkshopId, setNewWorkshopId] = useState("");
 
   // Edit form
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editActive, setEditActive] = useState(true);
+  const [editWorkshopId, setEditWorkshopId] = useState("");
 
   // Drag-and-drop reorder
   const dragItem = useRef<number | null>(null);
@@ -38,8 +41,12 @@ export function StagesManagement({ onRefresh }: Props) {
     setLoading(true);
     setError("");
     try {
-      const data = await listStages(true);
-      setStages(data);
+      const [stageData, workshopData] = await Promise.all([
+        listStages(true),
+        listWorkshops(false),
+      ]);
+      setStages(stageData);
+      setWorkshops(workshopData);
     } catch (err) {
       setError(apiError(err));
     } finally {
@@ -59,11 +66,13 @@ export function StagesManagement({ onRefresh }: Props) {
         name: newName.trim(),
         description: newDesc.trim() || undefined,
         sort_order: (stages.length + 1) * 10,
+        workshop_id: newWorkshopId || undefined,
       };
       await createStage(payload);
       setNewCode("");
       setNewName("");
       setNewDesc("");
+      setNewWorkshopId("");
       setShowCreate(false);
       await load();
       onRefresh?.();
@@ -79,6 +88,7 @@ export function StagesManagement({ onRefresh }: Props) {
     setEditName(s.name);
     setEditDesc(s.description || "");
     setEditActive(s.is_active);
+    setEditWorkshopId(s.workshop_id || "");
   };
 
   const cancelEdit = () => {
@@ -93,6 +103,7 @@ export function StagesManagement({ onRefresh }: Props) {
         name: editName.trim() || undefined,
         description: editDesc.trim() || null,
         is_active: editActive,
+        workshop_id: editWorkshopId || null,
       });
       setEditingId(null);
       await load();
@@ -134,6 +145,9 @@ export function StagesManagement({ onRefresh }: Props) {
     }
   };
 
+  // Group stages by workshop for visual display
+  const workshopMap = new Map(workshops.map((w) => [w.id, w]));
+
   if (loading) return <Spinner size="lg" />;
 
   return (
@@ -159,83 +173,107 @@ export function StagesManagement({ onRefresh }: Props) {
         {stages.length === 0 ? (
           <div className="p-8 text-center text-gray-400">Этапы не настроены</div>
         ) : (
-          stages.map((stage, index) => (
-            <div
-              key={stage.id}
-              draggable={editingId !== stage.id}
-              onDragStart={() => handleDragStart(index)}
-              onDragEnter={() => handleDragEnter(index)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => e.preventDefault()}
-              className={clsx(
-                "flex items-center gap-3 px-4 py-3 transition",
-                editingId !== stage.id && "cursor-grab hover:bg-gray-50",
-                !stage.is_active && "opacity-50",
-              )}
-            >
-              <GripVertical size={16} className="text-gray-300 flex-shrink-0" />
+          stages.map((stage, index) => {
+            const workshop = stage.workshop_id ? workshopMap.get(stage.workshop_id) : null;
+            return (
+              <div
+                key={stage.id}
+                draggable={editingId !== stage.id}
+                onDragStart={() => handleDragStart(index)}
+                onDragEnter={() => handleDragEnter(index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                className={clsx(
+                  "flex items-center gap-3 px-4 py-3 transition",
+                  editingId !== stage.id && "cursor-grab hover:bg-gray-50",
+                  !stage.is_active && "opacity-50",
+                )}
+                style={{
+                  borderLeft: workshop ? `3px solid ${workshop.color || "#9CA3AF"}` : undefined,
+                }}
+              >
+                <GripVertical size={16} className="text-gray-300 flex-shrink-0" />
 
-              {editingId === stage.id ? (
-                /* Edit mode */
-                <div className="flex-1 flex items-center gap-3">
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm flex-1"
-                    placeholder="Название"
-                  />
-                  <input
-                    value={editDesc}
-                    onChange={(e) => setEditDesc(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm flex-1"
-                    placeholder="Описание"
-                  />
-                  <label className="flex items-center gap-1 text-sm text-gray-600 whitespace-nowrap">
+                {editingId === stage.id ? (
+                  /* Edit mode */
+                  <div className="flex-1 flex items-center gap-3 flex-wrap">
                     <input
-                      type="checkbox"
-                      checked={editActive}
-                      onChange={(e) => setEditActive(e.target.checked)}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm flex-1 min-w-[120px]"
+                      placeholder="Название"
                     />
-                    Активен
-                  </label>
-                  <button
-                    onClick={() => handleUpdate(stage.id)}
-                    disabled={saving}
-                    className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                  >
-                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                  </button>
-                  <button onClick={cancelEdit} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded">
-                    <X size={16} />
-                  </button>
-                </div>
-              ) : (
-                /* View mode */
-                <>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{stage.name}</span>
-                      <span className="text-xs text-gray-400 font-mono">{stage.code}</span>
-                      {!stage.is_active && (
-                        <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-                          неактивен
-                        </span>
+                    <input
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm flex-1 min-w-[120px]"
+                      placeholder="Описание"
+                    />
+                    <select
+                      value={editWorkshopId}
+                      onChange={(e) => setEditWorkshopId(e.target.value)}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm"
+                    >
+                      <option value="">Без цеха</option>
+                      {workshops.map((w) => (
+                        <option key={w.id} value={w.id}>{w.name}</option>
+                      ))}
+                    </select>
+                    <label className="flex items-center gap-1 text-sm text-gray-600 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={editActive}
+                        onChange={(e) => setEditActive(e.target.checked)}
+                      />
+                      Активен
+                    </label>
+                    <button
+                      onClick={() => handleUpdate(stage.id)}
+                      disabled={saving}
+                      className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                    >
+                      {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    </button>
+                    <button onClick={cancelEdit} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  /* View mode */
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{stage.name}</span>
+                        <span className="text-xs text-gray-400 font-mono">{stage.code}</span>
+                        {stage.workshop_name && (
+                          <span
+                            className="text-xs px-1.5 py-0.5 rounded text-white"
+                            style={{ backgroundColor: stage.workshop_color || "#9CA3AF" }}
+                          >
+                            {stage.workshop_name}
+                          </span>
+                        )}
+                        {!stage.is_active && (
+                          <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                            неактивен
+                          </span>
+                        )}
+                      </div>
+                      {stage.description && (
+                        <p className="text-xs text-gray-500 mt-0.5">{stage.description}</p>
                       )}
                     </div>
-                    {stage.description && (
-                      <p className="text-xs text-gray-500 mt-0.5">{stage.description}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => startEdit(stage)}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded flex-shrink-0"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                </>
-              )}
-            </div>
-          ))
+                    <button
+                      onClick={() => startEdit(stage)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded flex-shrink-0"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -270,6 +308,19 @@ export function StagesManagement({ onRefresh }: Props) {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
               placeholder="Опционально"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Цех</label>
+            <select
+              value={newWorkshopId}
+              onChange={(e) => setNewWorkshopId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="">Без цеха</option>
+              {workshops.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button

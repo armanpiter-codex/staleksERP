@@ -1,3 +1,34 @@
+// ─── Production Workshop ─────────────────────────────────────────────────────
+
+export interface ProductionWorkshop {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductionWorkshopCreate {
+  code: string;
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export interface ProductionWorkshopUpdate {
+  name?: string | null;
+  description?: string | null;
+  color?: string | null;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+}
+
 // ─── Production Stage ────────────────────────────────────────────────────────
 
 export interface ProductionStage {
@@ -7,6 +38,10 @@ export interface ProductionStage {
   description: string | null;
   sort_order: number;
   is_active: boolean;
+  workshop_id: string | null;
+  workshop_name: string | null;
+  workshop_code: string | null;
+  workshop_color: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -17,6 +52,7 @@ export interface ProductionStageCreate {
   description?: string | null;
   sort_order?: number;
   is_active?: boolean;
+  workshop_id?: string | null;
 }
 
 export interface ProductionStageUpdate {
@@ -24,6 +60,7 @@ export interface ProductionStageUpdate {
   description?: string | null;
   sort_order?: number | null;
   is_active?: boolean | null;
+  workshop_id?: string | null;
 }
 
 // ─── Production Route ────────────────────────────────────────────────────────
@@ -36,13 +73,32 @@ export interface RouteStep {
   step_order: number;
   is_optional: boolean;
   notes: string | null;
+  phase: number;
+  workshop_id: string | null;
+  workshop_name: string | null;
+  workshop_code: string | null;
+  workshop_color: string | null;
+}
+
+export interface RouteTrack {
+  workshop_id: string;
+  workshop_name: string;
+  workshop_code: string;
+  workshop_color: string | null;
+  steps: RouteStep[];
+}
+
+export interface RoutePhase {
+  phase: number;
+  tracks: RouteTrack[];
 }
 
 export interface ProductionRoute {
   door_model_id: string;
   door_model_code: string;
   door_model_label: string;
-  steps: RouteStep[];
+  phases: RoutePhase[];
+  steps: RouteStep[]; // flat list for backward compat
 }
 
 export interface RouteStepInput {
@@ -52,8 +108,30 @@ export interface RouteStepInput {
   notes?: string | null;
 }
 
+export interface RoutePhaseInput {
+  phase: number;
+  workshop_id: string;
+  stages: RouteStepInput[];
+}
+
 export interface SetRoutePayload {
-  steps: RouteStepInput[];
+  phases: RoutePhaseInput[];
+}
+
+// ─── Workshop Progress ──────────────────────────────────────────────────────
+
+export interface WorkshopProgress {
+  workshop_id: string;
+  workshop_name: string;
+  workshop_code: string;
+  workshop_color: string | null;
+  phase: number;
+  current_stage_id: string | null;
+  current_stage_name: string | null;
+  current_stage_code: string | null;
+  status: 'pending' | 'active' | 'completed' | 'skipped';
+  track_total_steps: number;
+  track_current_step: number;
 }
 
 // ─── Production Queue ────────────────────────────────────────────────────────
@@ -75,6 +153,10 @@ export interface ProductionDoor {
   route_current_step: number;
   notes: string | null;
   created_at: string;
+  // Sprint 16: parallel tracks
+  current_phase: number | null;
+  total_phases: number;
+  workshop_progress: WorkshopProgress[];
 }
 
 export interface StageCounter {
@@ -82,22 +164,38 @@ export interface StageCounter {
   stage_name: string;
   stage_code: string;
   count: number;
+  workshop_id: string | null;
+  workshop_name: string | null;
+  workshop_code: string | null;
+  workshop_color: string | null;
+}
+
+export interface WorkshopCounter {
+  workshop_id: string | null;
+  workshop_name: string;
+  workshop_code: string;
+  workshop_color: string | null;
+  count: number;
+  stages: StageCounter[];
 }
 
 export interface ProductionQueueResponse {
   items: ProductionDoor[];
   total: number;
   counters: StageCounter[];
+  workshop_counters: WorkshopCounter[];
 }
 
 // ─── Door Movement ──────────────────────────────────────────────────────────
 
 export interface MoveDoorPayload {
+  workshop_id?: string | null;
   notes?: string | null;
 }
 
 export interface MoveDoorToStagePayload {
   stage_id: string;
+  workshop_id?: string | null;
   notes?: string | null;
 }
 
@@ -136,6 +234,9 @@ export interface RouteStageForPrint {
   is_completed: boolean;
   is_current: boolean;
   is_optional: boolean;
+  workshop_name: string | null;
+  workshop_color: string | null;
+  phase: number;
 }
 
 export interface DoorPrintData {
@@ -177,6 +278,7 @@ export interface StagePrintDoor {
 export interface StagePrintData {
   stage_name: string;
   stage_code: string;
+  workshop_name: string | null;
   print_date: string;
   total_doors: number;
   doors: StagePrintDoor[];
@@ -186,6 +288,7 @@ export interface StagePrintData {
 
 export interface QueueParams {
   stage_id?: string;
+  workshop_id?: string;
   order_id?: string;
   door_model_id?: string;
   priority?: boolean;
