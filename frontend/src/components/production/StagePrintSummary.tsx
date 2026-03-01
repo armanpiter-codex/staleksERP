@@ -51,6 +51,9 @@ export function StagePrintSummary({ data, onClose }: StagePrintSummaryProps) {
             <p className="font-semibold text-gray-800 text-lg">
               {data.stage_name}
             </p>
+            {data.workshop_name && (
+              <p className="text-gray-500 text-xs">Цех: {data.workshop_name}</p>
+            )}
             <p className="text-gray-500 text-xs mt-1">{data.print_date}</p>
           </div>
         </div>
@@ -123,7 +126,7 @@ export function StagePrintSummary({ data, onClose }: StagePrintSummaryProps) {
         {/* Footer */}
         <div className="mt-6 flex items-end justify-between border-t border-gray-200 pt-4">
           <div className="text-xs text-gray-400">
-            <p>Итого: {data.total_doors} дверей на этапе «{data.stage_name}»</p>
+            <p>Итого: {data.total_doors} дверей на этапе «{data.stage_name}»{data.workshop_name ? ` (${data.workshop_name})` : ""}</p>
           </div>
           <div className="text-right text-xs text-gray-400">
             <p>Staleks ERP</p>

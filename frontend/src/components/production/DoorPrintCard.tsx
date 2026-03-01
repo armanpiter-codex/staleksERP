@@ -1,17 +1,33 @@
 "use client";
 
 import { CheckSquare, Square, AlertTriangle } from "lucide-react";
-import type { DoorPrintData } from "@/types/production";
+import type { DoorPrintData, RouteStageForPrint } from "@/types/production";
 
 interface DoorPrintCardProps {
   data: DoorPrintData;
   onClose: () => void;
 }
 
+// Group route stages by phase for phased display
+function groupByPhase(stages: RouteStageForPrint[]): Map<number, RouteStageForPrint[]> {
+  const map = new Map<number, RouteStageForPrint[]>();
+  for (const s of stages) {
+    const ph = s.phase ?? 1;
+    if (!map.has(ph)) map.set(ph, []);
+    map.get(ph)!.push(s);
+  }
+  return map;
+}
+
 export function DoorPrintCard({ data, onClose }: DoorPrintCardProps) {
   const handlePrint = () => {
     window.print();
   };
+
+  const phaseMap = groupByPhase(data.route_stages);
+  const phaseNumbers = Array.from(phaseMap.keys()).sort((a, b) => a - b);
+  const isPhased = phaseNumbers.length > 1 ||
+    data.route_stages.some((s) => s.workshop_name);
 
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-auto">
@@ -217,36 +233,113 @@ export function DoorPrintCard({ data, onClose }: DoorPrintCardProps) {
                 Этап {data.route_current_step} из {data.route_total_steps}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-              {data.route_stages.map((stage) => (
-                <div
-                  key={stage.step_order}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  {stage.is_completed ? (
-                    <CheckSquare className="h-4 w-4 text-green-600 flex-shrink-0" />
-                  ) : stage.is_current ? (
-                    <div className="h-4 w-4 rounded border-2 border-staleks-lime bg-staleks-lime/20 flex-shrink-0" />
-                  ) : (
-                    <Square className="h-4 w-4 text-gray-300 flex-shrink-0" />
-                  )}
-                  <span
-                    className={
-                      stage.is_current
-                        ? "font-bold text-gray-900"
-                        : stage.is_completed
-                          ? "text-gray-500 line-through"
-                          : "text-gray-600"
-                    }
+
+            {isPhased ? (
+              /* Phased display with workshop grouping */
+              <div className="space-y-3">
+                {phaseNumbers.map((ph) => {
+                  const phaseStages = phaseMap.get(ph) || [];
+                  // Group within phase by workshop
+                  const byWorkshop = new Map<string, RouteStageForPrint[]>();
+                  for (const s of phaseStages) {
+                    const key = s.workshop_name || "__none__";
+                    if (!byWorkshop.has(key)) byWorkshop.set(key, []);
+                    byWorkshop.get(key)!.push(s);
+                  }
+
+                  return (
+                    <div key={ph} className="border border-gray-200 rounded overflow-hidden">
+                      <div className="bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 border-b border-gray-200">
+                        Фаза {ph}
+                        {byWorkshop.size > 1 && (
+                          <span className="ml-2 text-blue-500 font-normal">параллельно</span>
+                        )}
+                      </div>
+                      <div className={byWorkshop.size > 1 ? "grid grid-cols-2 divide-x divide-gray-100" : ""}>
+                        {Array.from(byWorkshop.entries()).map(([wsName, wsStages]) => {
+                          const firstStage = wsStages[0];
+                          const wsColor = firstStage?.workshop_color;
+                          return (
+                            <div key={wsName} className="p-2">
+                              {wsName !== "__none__" && (
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  {wsColor && (
+                                    <div
+                                      className="w-2 h-2 rounded-full"
+                                      style={{ backgroundColor: wsColor }}
+                                    />
+                                  )}
+                                  <span className="text-xs font-medium text-gray-600">{wsName}</span>
+                                </div>
+                              )}
+                              <div className="space-y-1">
+                                {wsStages.map((stage) => (
+                                  <div key={stage.step_order} className="flex items-center gap-1.5 text-xs">
+                                    {stage.is_completed ? (
+                                      <CheckSquare className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
+                                    ) : stage.is_current ? (
+                                      <div className="h-3.5 w-3.5 rounded border-2 border-staleks-lime bg-staleks-lime/20 flex-shrink-0" />
+                                    ) : (
+                                      <Square className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" />
+                                    )}
+                                    <span
+                                      className={
+                                        stage.is_current
+                                          ? "font-bold text-gray-900"
+                                          : stage.is_completed
+                                            ? "text-gray-400 line-through"
+                                            : "text-gray-600"
+                                      }
+                                    >
+                                      {stage.stage_name}
+                                    </span>
+                                    {stage.is_optional && (
+                                      <span className="text-gray-400">(необязат.)</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Legacy flat display */
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                {data.route_stages.map((stage) => (
+                  <div
+                    key={stage.step_order}
+                    className="flex items-center gap-2 text-sm"
                   >
-                    {stage.step_order}. {stage.stage_name}
-                  </span>
-                  {stage.is_optional && (
-                    <span className="text-xs text-gray-400">(необязат.)</span>
-                  )}
-                </div>
-              ))}
-            </div>
+                    {stage.is_completed ? (
+                      <CheckSquare className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    ) : stage.is_current ? (
+                      <div className="h-4 w-4 rounded border-2 border-staleks-lime bg-staleks-lime/20 flex-shrink-0" />
+                    ) : (
+                      <Square className="h-4 w-4 text-gray-300 flex-shrink-0" />
+                    )}
+                    <span
+                      className={
+                        stage.is_current
+                          ? "font-bold text-gray-900"
+                          : stage.is_completed
+                            ? "text-gray-500 line-through"
+                            : "text-gray-600"
+                      }
+                    >
+                      {stage.step_order}. {stage.stage_name}
+                    </span>
+                    {stage.is_optional && (
+                      <span className="text-xs text-gray-400">(необязат.)</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

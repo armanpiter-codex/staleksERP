@@ -1,17 +1,106 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronRight, Save, Loader2, Plus, Trash2, GripVertical, Copy } from "lucide-react";
+import {
+  ChevronRight,
+  Save,
+  Loader2,
+  Plus,
+  Trash2,
+  Copy,
+  Layers,
+} from "lucide-react";
 import clsx from "clsx";
-import { listStages, listAllRoutes, setRouteForModel } from "@/lib/productionApi";
+import {
+  listStages,
+  listWorkshops,
+  listAllRoutes,
+  setRouteForModel,
+} from "@/lib/productionApi";
 import { listModels } from "@/lib/configuratorApi";
-import type { ProductionStage, ProductionRoute, RouteStepInput } from "@/types/production";
+import type {
+  ProductionStage,
+  ProductionWorkshop,
+  ProductionRoute,
+  RoutePhaseInput,
+} from "@/types/production";
 import type { DoorModel } from "@/types/configurator";
 import { apiError } from "@/lib/utils";
 import { ErrorAlert, Spinner } from "@/components/ui";
 
+// ─── Local editing types ─────────────────────────────────────────────────────
+
+interface EditStep {
+  stage_id: string;
+  step_order: number;
+  is_optional: boolean;
+}
+
+interface EditTrack {
+  workshop_id: string;
+  stages: EditStep[];
+}
+
+interface EditPhase {
+  phase: number;
+  tracks: EditTrack[];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function routeToEditPhases(route: ProductionRoute): EditPhase[] {
+  if (!route.phases || route.phases.length === 0) {
+    // Legacy flat route — wrap into single phase
+    if (route.steps.length === 0) return [];
+    const byWorkshop = new Map<string, EditStep[]>();
+    for (const s of route.steps) {
+      const wid = s.workshop_id || "__none__";
+      if (!byWorkshop.has(wid)) byWorkshop.set(wid, []);
+      byWorkshop.get(wid)!.push({
+        stage_id: s.stage_id,
+        step_order: s.step_order,
+        is_optional: s.is_optional,
+      });
+    }
+    const tracks: EditTrack[] = [];
+    for (const [wid, steps] of byWorkshop) {
+      tracks.push({ workshop_id: wid === "__none__" ? "" : wid, stages: steps });
+    }
+    return [{ phase: 1, tracks }];
+  }
+
+  return route.phases.map((p) => ({
+    phase: p.phase,
+    tracks: p.tracks.map((t) => ({
+      workshop_id: t.workshop_id,
+      stages: t.steps.map((s) => ({
+        stage_id: s.stage_id,
+        step_order: s.step_order,
+        is_optional: s.is_optional,
+      })),
+    })),
+  }));
+}
+
+function editPhasesToPayload(phases: EditPhase[]): RoutePhaseInput[] {
+  return phases.flatMap((p) =>
+    p.tracks.map((t) => ({
+      phase: p.phase,
+      workshop_id: t.workshop_id,
+      stages: t.stages.map((s, i) => ({
+        stage_id: s.stage_id,
+        step_order: i + 1,
+        is_optional: s.is_optional,
+      })),
+    })),
+  );
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export function RoutesManagement() {
   const [stages, setStages] = useState<ProductionStage[]>([]);
+  const [workshops, setWorkshops] = useState<ProductionWorkshop[]>([]);
   const [models, setModels] = useState<DoorModel[]>([]);
   const [routes, setRoutes] = useState<ProductionRoute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +108,7 @@ export function RoutesManagement() {
 
   // Editing
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  const [editSteps, setEditSteps] = useState<RouteStepInput[]>([]);
+  const [editPhases, setEditPhases] = useState<EditPhase[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
@@ -27,12 +116,14 @@ export function RoutesManagement() {
     setLoading(true);
     setError("");
     try {
-      const [stageList, routeList, modelList] = await Promise.all([
+      const [stageList, workshopList, routeList, modelList] = await Promise.all([
         listStages(false),
+        listWorkshops(false),
         listAllRoutes(),
         listModels(),
       ]);
       setStages(stageList);
+      setWorkshops(workshopList);
       setRoutes(routeList);
       setModels(modelList.filter((m) => m.is_active));
     } catch (err) {
@@ -48,73 +139,178 @@ export function RoutesManagement() {
     setSelectedModelId(modelId);
     const existing = routes.find((r) => r.door_model_id === modelId);
     if (existing) {
-      setEditSteps(
-        existing.steps.map((s) => ({
-          stage_id: s.stage_id,
-          step_order: s.step_order,
-          is_optional: s.is_optional,
-          notes: s.notes,
-        })),
-      );
+      setEditPhases(routeToEditPhases(existing));
     } else {
-      setEditSteps([]);
+      setEditPhases([]);
     }
     setDirty(false);
   };
 
-  const addStep = () => {
-    const nextOrder = editSteps.length > 0
-      ? Math.max(...editSteps.map((s) => s.step_order)) + 1
+  // ─── Phase operations ────────────────────────────────────────────────────
+
+  const addPhase = () => {
+    const nextPhase = editPhases.length > 0
+      ? Math.max(...editPhases.map((p) => p.phase)) + 1
       : 1;
-    // Find first stage not already in the route
-    const usedStageIds = new Set(editSteps.map((s) => s.stage_id));
+    const usedWorkshopIds = new Set(editPhases.flatMap((p) => p.tracks.map((t) => t.workshop_id)));
+    const availableWorkshop = workshops.find((w) => !usedWorkshopIds.has(w.id));
+    setEditPhases([
+      ...editPhases,
+      {
+        phase: nextPhase,
+        tracks: [
+          {
+            workshop_id: availableWorkshop?.id || workshops[0]?.id || "",
+            stages: [],
+          },
+        ],
+      },
+    ]);
+    setDirty(true);
+  };
+
+  const removePhase = (phaseIndex: number) => {
+    const updated = editPhases.filter((_, i) => i !== phaseIndex);
+    const renumbered = updated.map((p, i) => ({ ...p, phase: i + 1 }));
+    setEditPhases(renumbered);
+    setDirty(true);
+  };
+
+  // ─── Track operations ────────────────────────────────────────────────────
+
+  const addTrack = (phaseIndex: number) => {
+    const phase = editPhases[phaseIndex];
+    const usedInPhase = new Set(phase.tracks.map((t) => t.workshop_id));
+    const available = workshops.find((w) => !usedInPhase.has(w.id));
+    if (!available) return;
+
+    const updated = [...editPhases];
+    updated[phaseIndex] = {
+      ...phase,
+      tracks: [
+        ...phase.tracks,
+        { workshop_id: available.id, stages: [] },
+      ],
+    };
+    setEditPhases(updated);
+    setDirty(true);
+  };
+
+  const removeTrack = (phaseIndex: number, trackIndex: number) => {
+    const updated = [...editPhases];
+    const phase = { ...updated[phaseIndex] };
+    phase.tracks = phase.tracks.filter((_, i) => i !== trackIndex);
+    if (phase.tracks.length === 0) {
+      removePhase(phaseIndex);
+    } else {
+      updated[phaseIndex] = phase;
+      setEditPhases(updated);
+      setDirty(true);
+    }
+  };
+
+  const updateTrackWorkshop = (phaseIndex: number, trackIndex: number, workshopId: string) => {
+    const updated = [...editPhases];
+    const phase = { ...updated[phaseIndex] };
+    const tracks = [...phase.tracks];
+    tracks[trackIndex] = { ...tracks[trackIndex], workshop_id: workshopId };
+    phase.tracks = tracks;
+    updated[phaseIndex] = phase;
+    setEditPhases(updated);
+    setDirty(true);
+  };
+
+  // ─── Step operations ─────────────────────────────────────────────────────
+
+  const addStep = (phaseIndex: number, trackIndex: number) => {
+    const track = editPhases[phaseIndex].tracks[trackIndex];
+    const usedStageIds = new Set(track.stages.map((s) => s.stage_id));
     const available = stages.find((s) => !usedStageIds.has(s.id));
     if (!available) return;
-    setEditSteps([...editSteps, { stage_id: available.id, step_order: nextOrder }]);
+
+    const nextOrder = track.stages.length > 0
+      ? Math.max(...track.stages.map((s) => s.step_order)) + 1
+      : 1;
+
+    const updated = [...editPhases];
+    const phase = { ...updated[phaseIndex] };
+    const tracks = [...phase.tracks];
+    tracks[trackIndex] = {
+      ...tracks[trackIndex],
+      stages: [
+        ...tracks[trackIndex].stages,
+        { stage_id: available.id, step_order: nextOrder, is_optional: false },
+      ],
+    };
+    phase.tracks = tracks;
+    updated[phaseIndex] = phase;
+    setEditPhases(updated);
     setDirty(true);
   };
 
-  const removeStep = (index: number) => {
-    const updated = editSteps.filter((_, i) => i !== index);
-    // Renumber
-    const renumbered = updated.map((s, i) => ({ ...s, step_order: i + 1 }));
-    setEditSteps(renumbered);
+  const removeStep = (phaseIndex: number, trackIndex: number, stepIndex: number) => {
+    const updated = [...editPhases];
+    const phase = { ...updated[phaseIndex] };
+    const tracks = [...phase.tracks];
+    const track = { ...tracks[trackIndex] };
+    track.stages = track.stages.filter((_, i) => i !== stepIndex)
+      .map((s, i) => ({ ...s, step_order: i + 1 }));
+    tracks[trackIndex] = track;
+    phase.tracks = tracks;
+    updated[phaseIndex] = phase;
+    setEditPhases(updated);
     setDirty(true);
   };
 
-  const updateStepStage = (index: number, stageId: string) => {
-    const updated = [...editSteps];
-    updated[index] = { ...updated[index], stage_id: stageId };
-    setEditSteps(updated);
+  const updateStepStage = (
+    phaseIndex: number,
+    trackIndex: number,
+    stepIndex: number,
+    stageId: string,
+  ) => {
+    const updated = [...editPhases];
+    const phase = { ...updated[phaseIndex] };
+    const tracks = [...phase.tracks];
+    const track = { ...tracks[trackIndex] };
+    const stepsCopy = [...track.stages];
+    stepsCopy[stepIndex] = { ...stepsCopy[stepIndex], stage_id: stageId };
+    track.stages = stepsCopy;
+    tracks[trackIndex] = track;
+    phase.tracks = tracks;
+    updated[phaseIndex] = phase;
+    setEditPhases(updated);
     setDirty(true);
   };
 
-  const toggleOptional = (index: number) => {
-    const updated = [...editSteps];
-    updated[index] = { ...updated[index], is_optional: !updated[index].is_optional };
-    setEditSteps(updated);
+  const toggleOptional = (phaseIndex: number, trackIndex: number, stepIndex: number) => {
+    const updated = [...editPhases];
+    const phase = { ...updated[phaseIndex] };
+    const tracks = [...phase.tracks];
+    const track = { ...tracks[trackIndex] };
+    const stepsCopy = [...track.stages];
+    stepsCopy[stepIndex] = { ...stepsCopy[stepIndex], is_optional: !stepsCopy[stepIndex].is_optional };
+    track.stages = stepsCopy;
+    tracks[trackIndex] = track;
+    phase.tracks = tracks;
+    updated[phaseIndex] = phase;
+    setEditPhases(updated);
     setDirty(true);
   };
+
+  // ─── Save ────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!selectedModelId) return;
     setSaving(true);
     setError("");
     try {
-      await setRouteForModel(selectedModelId, { steps: editSteps });
+      const payload = editPhasesToPayload(editPhases);
+      await setRouteForModel(selectedModelId, { phases: payload });
       setDirty(false);
       await load();
-      // Re-select to refresh
-      const existing = (await listAllRoutes()).find((r) => r.door_model_id === selectedModelId);
-      if (existing) {
-        setEditSteps(
-          existing.steps.map((s) => ({
-            stage_id: s.stage_id,
-            step_order: s.step_order,
-            is_optional: s.is_optional,
-            notes: s.notes,
-          })),
-        );
+      const updated = (await listAllRoutes()).find((r) => r.door_model_id === selectedModelId);
+      if (updated) {
+        setEditPhases(routeToEditPhases(updated));
       }
     } catch (err) {
       setError(apiError(err));
@@ -123,21 +319,15 @@ export function RoutesManagement() {
     }
   };
 
+  // ─── Copy from another model ─────────────────────────────────────────────
+
   const copyFromModel = (sourceModelId: string) => {
     const source = routes.find((r) => r.door_model_id === sourceModelId);
-    if (!source || source.steps.length === 0) return;
-    setEditSteps(
-      source.steps.map((s) => ({
-        stage_id: s.stage_id,
-        step_order: s.step_order,
-        is_optional: s.is_optional,
-        notes: s.notes,
-      })),
-    );
+    if (!source) return;
+    setEditPhases(routeToEditPhases(source));
     setDirty(true);
   };
 
-  // Models that have routes configured (for copy source)
   const modelsWithRoutes = models.filter(
     (m) => m.id !== selectedModelId && routes.some((r) => r.door_model_id === m.id && r.steps.length > 0),
   );
@@ -145,7 +335,12 @@ export function RoutesManagement() {
   if (loading) return <Spinner size="lg" />;
 
   const selectedModel = models.find((m) => m.id === selectedModelId);
-  const usedStageIds = new Set(editSteps.map((s) => s.stage_id));
+  const workshopMap = new Map(workshops.map((w) => [w.id, w]));
+
+  const totalSteps = editPhases.reduce(
+    (sum, p) => sum + p.tracks.reduce((ts, t) => ts + t.stages.length, 0),
+    0,
+  );
 
   return (
     <div className="space-y-4">
@@ -157,12 +352,13 @@ export function RoutesManagement() {
           <div className="px-4 py-3 border-b border-gray-100">
             <h3 className="text-sm font-semibold text-gray-700">Модели дверей</h3>
           </div>
-          <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+          <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
             {models.length === 0 ? (
               <div className="p-6 text-center text-gray-400 text-sm">Нет моделей</div>
             ) : (
               models.map((model) => {
                 const route = routes.find((r) => r.door_model_id === model.id);
+                const stepCount = route?.steps.length || 0;
                 return (
                   <button
                     key={model.id}
@@ -179,12 +375,12 @@ export function RoutesManagement() {
                       </div>
                       <span className={clsx(
                         "text-xs px-2 py-0.5 rounded-full",
-                        route && route.steps.length > 0
+                        stepCount > 0
                           ? "bg-green-100 text-green-700"
                           : "bg-gray-100 text-gray-500",
                       )}>
-                        {route && route.steps.length > 0
-                          ? `${route.steps.length} шагов`
+                        {stepCount > 0
+                          ? `${stepCount} шагов`
                           : "нет маршрута"}
                       </span>
                     </div>
@@ -195,7 +391,7 @@ export function RoutesManagement() {
           </div>
         </div>
 
-        {/* Route editor */}
+        {/* Phase-based route editor */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-700">
@@ -225,11 +421,10 @@ export function RoutesManagement() {
                   </div>
                 )}
                 <button
-                  onClick={addStep}
-                  disabled={usedStageIds.size >= stages.length}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                  onClick={addPhase}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
                 >
-                  <Plus size={14} /> Шаг
+                  <Layers size={14} /> Фаза
                 </button>
                 {dirty && (
                   <button
@@ -249,81 +444,220 @@ export function RoutesManagement() {
             <div className="p-12 text-center text-gray-400 text-sm">
               Выберите модель двери слева для настройки маршрута
             </div>
-          ) : editSteps.length === 0 ? (
+          ) : editPhases.length === 0 ? (
             <div className="p-12 text-center text-gray-400 text-sm">
               <p>Маршрут не настроен</p>
               <p className="mt-1">
-                Нажмите &laquo;+ Шаг&raquo; чтобы добавить этапы производства
+                Нажмите &laquo;+ Фаза&raquo; чтобы начать настройку маршрута
               </p>
             </div>
           ) : (
-            <div className="p-4 space-y-2">
-              {editSteps.map((step, index) => (
+            <div className="p-4 space-y-4">
+              {editPhases.map((phase, phaseIdx) => (
                 <div
-                  key={index}
-                  className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2.5"
+                  key={phaseIdx}
+                  className="border border-gray-200 rounded-lg overflow-hidden"
                 >
-                  <GripVertical size={14} className="text-gray-300" />
-                  <span className="text-xs font-mono text-gray-400 w-6">{step.step_order}</span>
-                  <ChevronRight size={14} className="text-gray-300" />
-                  <select
-                    value={step.stage_id}
-                    onChange={(e) => updateStepStage(index, e.target.value)}
-                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm bg-white"
-                  >
-                    {stages.map((s) => (
-                      <option
-                        key={s.id}
-                        value={s.id}
-                        disabled={usedStageIds.has(s.id) && s.id !== step.stage_id}
+                  {/* Phase header */}
+                  <div className="flex items-center justify-between bg-gray-50 px-4 py-2 border-b border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <Layers size={14} className="text-gray-500" />
+                      <span className="text-sm font-semibold text-gray-700">
+                        Фаза {phase.phase}
+                      </span>
+                      {phase.tracks.length > 1 && (
+                        <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                          параллельно
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => addTrack(phaseIdx)}
+                        disabled={phase.tracks.length >= workshops.length}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:bg-gray-200 rounded disabled:opacity-30"
                       >
-                        {s.name} ({s.code})
-                      </option>
-                    ))}
-                  </select>
-                  <label className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={step.is_optional || false}
-                      onChange={() => toggleOptional(index)}
-                    />
-                    Опц.
-                  </label>
-                  <button
-                    onClick={() => removeStep(index)}
-                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                        <Plus size={12} /> Цех
+                      </button>
+                      <button
+                        onClick={() => removePhase(phaseIdx)}
+                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tracks */}
+                  <div className={clsx(
+                    "divide-y divide-gray-100",
+                    phase.tracks.length > 1 && "bg-blue-50/30",
+                  )}>
+                    {phase.tracks.map((track, trackIdx) => {
+                      const workshop = workshopMap.get(track.workshop_id);
+                      const usedInTrack = new Set(track.stages.map((s) => s.stage_id));
+
+                      return (
+                        <div
+                          key={trackIdx}
+                          className="p-3"
+                          style={{
+                            borderLeft: workshop ? `3px solid ${workshop.color || "#9CA3AF"}` : undefined,
+                          }}
+                        >
+                          {/* Track header */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <select
+                              value={track.workshop_id}
+                              onChange={(e) => updateTrackWorkshop(phaseIdx, trackIdx, e.target.value)}
+                              className="text-sm border border-gray-200 rounded px-2 py-1 bg-white"
+                            >
+                              <option value="">Выберите цех</option>
+                              {workshops.map((w) => (
+                                <option key={w.id} value={w.id}>
+                                  {w.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => addStep(phaseIdx, trackIdx)}
+                              className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 rounded"
+                            >
+                              <Plus size={12} /> Этап
+                            </button>
+                            {phase.tracks.length > 1 && (
+                              <button
+                                onClick={() => removeTrack(phaseIdx, trackIdx)}
+                                className="ml-auto p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Steps */}
+                          {track.stages.length === 0 ? (
+                            <p className="text-xs text-gray-400 pl-2">
+                              Нажмите &laquo;+ Этап&raquo; для добавления
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {track.stages.map((step, stepIdx) => (
+                                <div
+                                  key={stepIdx}
+                                  className="flex items-center gap-2 bg-white rounded px-2 py-1.5 border border-gray-100"
+                                >
+                                  <span className="text-xs font-mono text-gray-400 w-5">
+                                    {step.step_order}
+                                  </span>
+                                  <ChevronRight size={12} className="text-gray-300" />
+                                  <select
+                                    value={step.stage_id}
+                                    onChange={(e) =>
+                                      updateStepStage(phaseIdx, trackIdx, stepIdx, e.target.value)
+                                    }
+                                    className="flex-1 border border-gray-200 rounded px-2 py-1 text-sm bg-white"
+                                  >
+                                    {stages.map((s) => (
+                                      <option
+                                        key={s.id}
+                                        value={s.id}
+                                        disabled={usedInTrack.has(s.id) && s.id !== step.stage_id}
+                                      >
+                                        {s.name} ({s.code})
+                                        {s.workshop_name ? ` — ${s.workshop_name}` : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <label className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
+                                    <input
+                                      type="checkbox"
+                                      checked={step.is_optional}
+                                      onChange={() => toggleOptional(phaseIdx, trackIdx, stepIdx)}
+                                    />
+                                    Опц.
+                                  </label>
+                                  <button
+                                    onClick={() => removeStep(phaseIdx, trackIdx, stepIdx)}
+                                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
 
               {/* Visual preview */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-xs text-gray-400 mb-2">Визуализация маршрута:</p>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {editSteps.map((step, i) => {
-                    const stage = stages.find((s) => s.id === step.stage_id);
-                    return (
-                      <div key={i} className="flex items-center gap-1">
-                        <span
-                          className={clsx(
-                            "text-xs px-2 py-1 rounded",
-                            step.is_optional
-                              ? "bg-yellow-50 text-yellow-700 border border-yellow-200 border-dashed"
-                              : "bg-staleks-lime/20 text-staleks-sidebar",
+              {totalSteps > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-3">Визуализация маршрута:</p>
+                  <div className="space-y-3">
+                    {editPhases.map((phase, phaseIdx) => (
+                      <div key={phaseIdx}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-xs font-semibold text-gray-500">
+                            Фаза {phase.phase}
+                          </span>
+                          {phase.tracks.length > 1 && (
+                            <span className="text-[10px] text-blue-500">параллельно</span>
                           )}
-                        >
-                          {stage?.name || "?"}
-                        </span>
-                        {i < editSteps.length - 1 && (
-                          <ChevronRight size={12} className="text-gray-300" />
+                        </div>
+                        <div className="space-y-1">
+                          {phase.tracks.map((track, trackIdx) => {
+                            const workshop = workshopMap.get(track.workshop_id);
+                            return (
+                              <div key={trackIdx} className="flex items-center gap-1 flex-wrap">
+                                {workshop && (
+                                  <span
+                                    className="text-[10px] text-white px-1.5 py-0.5 rounded mr-1"
+                                    style={{ backgroundColor: workshop.color || "#9CA3AF" }}
+                                  >
+                                    {workshop.name}
+                                  </span>
+                                )}
+                                {track.stages.map((step, i) => {
+                                  const stage = stages.find((s) => s.id === step.stage_id);
+                                  return (
+                                    <div key={i} className="flex items-center gap-1">
+                                      <span
+                                        className={clsx(
+                                          "text-xs px-2 py-0.5 rounded",
+                                          step.is_optional
+                                            ? "bg-yellow-50 text-yellow-700 border border-yellow-200 border-dashed"
+                                            : "bg-staleks-lime/20 text-staleks-sidebar",
+                                        )}
+                                      >
+                                        {stage?.name || "?"}
+                                      </span>
+                                      {i < track.stages.length - 1 && (
+                                        <ChevronRight size={10} className="text-gray-300" />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {phaseIdx < editPhases.length - 1 && (
+                          <div className="flex items-center gap-2 mt-2 mb-1">
+                            <div className="flex-1 border-t border-dashed border-gray-300" />
+                            <span className="text-[10px] text-gray-400">все треки завершены</span>
+                            <div className="flex-1 border-t border-dashed border-gray-300" />
+                          </div>
                         )}
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
