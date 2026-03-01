@@ -284,6 +284,118 @@ export interface StagePrintData {
   doors: StagePrintDoor[];
 }
 
+// ─── Launch Checks (Sprint 17) ───────────────────────────────────────────────
+
+export interface LaunchCheckDefinition {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  is_required: boolean;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LaunchCheckDefinitionCreate {
+  code: string;
+  name: string;
+  description?: string | null;
+  is_required?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export interface LaunchCheckDefinitionUpdate {
+  name?: string;
+  description?: string | null;
+  is_required?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export interface DoorLaunchCheck {
+  id: string;
+  door_id: string;
+  check_id: string;
+  check_name: string;
+  check_description: string | null;
+  is_required: boolean;
+  sort_order: number;
+  is_done: boolean;
+  done_by: string | null;
+  done_at: string | null;
+  notes: string | null;
+}
+
+export interface PendingDoorCheckStatus {
+  check_id: string;
+  check_code: string;
+  check_name: string;
+  is_done: boolean;
+}
+
+export interface PendingDoor {
+  id: string;
+  internal_number: string;
+  marking: string | null;
+  order_id: string;
+  order_number: string;
+  item_id: string;
+  door_model_id: string | null;
+  door_model_label: string | null;
+  client_name: string | null;
+  facility_name: string | null;
+  floor: string | null;
+  building_block: string | null;
+  apartment: string | null;
+  priority: boolean;
+  checks_total: number;
+  checks_done: number;
+  is_ready: boolean;
+  check_statuses: PendingDoorCheckStatus[];
+}
+
+export interface PendingDoorsParams {
+  check_ids?: string[];
+  priority?: boolean;
+  search?: string;
+}
+
+export interface BatchLaunchResult {
+  launched: Array<{ door_id: string; internal_number: string }>;
+  errors: Array<{ door_id: string; internal_number?: string; error: string }>;
+  total_launched: number;
+  total_errors: number;
+}
+
+// ─── Overdue (Sprint 18) ────────────────────────────────────────────────────
+
+export interface OverdueDoor {
+  door_id: string;
+  internal_number: string;
+  marking: string | null;
+  order_id: string;
+  order_number: string;
+  client_name: string | null;
+  door_model_id: string | null;
+  door_model_label: string | null;
+  current_stage_id: string | null;
+  current_stage_name: string | null;
+  current_stage_code: string | null;
+  deadline: string;
+  days_overdue: number;
+  route_total_steps: number;
+  route_current_step: number;
+  workshop_progress: WorkshopProgress[];
+}
+
+export interface OverdueQueueResponse {
+  items: OverdueDoor[];
+  total: number;
+}
+
 // ─── Queue Params ───────────────────────────────────────────────────────────
 
 export interface QueueParams {

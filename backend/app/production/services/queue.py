@@ -1,5 +1,6 @@
 import uuid
 from collections import defaultdict
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,8 @@ from app.production.models import (
     ProductionWorkshop,
 )
 from app.production.schemas import (
+    OverdueDoorSchema,
+    OverdueQueueResponse,
     ProductionDoorSchema,
     ProductionQueueResponse,
     StageCounterSchema,
@@ -327,3 +330,168 @@ async def get_workshop_counters(db: AsyncSession) -> list[WorkshopCounterSchema]
         )
         for row in result.all()
     ]
+
+
+async def get_overdue_doors(
+    db: AsyncSession,
+    *,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> OverdueQueueResponse:
+    """Doors in production whose order deadline has passed."""
+    now = datetime.now(timezone.utc)
+
+    base = (
+        select(
+            OrderDoor.id.label("door_id"),
+            OrderDoor.internal_number,
+            OrderDoor.marking,
+            OrderDoor.current_stage_id,
+            OrderItem.id.label("item_id"),
+            OrderItem.order_id,
+            Order.order_number,
+            Order.client_name,
+            Order.desired_delivery_date.label("deadline"),
+            DoorConfiguration.door_model_id,
+            ProductionStage.name.label("current_stage_name"),
+            ProductionStage.code.label("current_stage_code"),
+        )
+        .join(OrderItem, OrderDoor.order_item_id == OrderItem.id)
+        .join(Order, OrderItem.order_id == Order.id)
+        .join(DoorConfiguration, OrderItem.configuration_id == DoorConfiguration.id)
+        .outerjoin(ProductionStage, OrderDoor.current_stage_id == ProductionStage.id)
+        .where(
+            OrderDoor.status == DoorStatus.in_production,
+            Order.desired_delivery_date.is_not(None),
+            Order.desired_delivery_date < now,
+        )
+    )
+
+    if search:
+        term = f"%{search}%"
+        base = base.where(
+            or_(
+                OrderDoor.internal_number.ilike(term),
+                OrderDoor.marking.ilike(term),
+                Order.order_number.ilike(term),
+            )
+        )
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar_one()
+
+    rows = (
+        await db.execute(
+            base.order_by(Order.desired_delivery_date.asc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+
+    items: list[OverdueDoorSchema] = []
+    for row in rows:
+        door_model_label = None
+        route_total = 0
+        route_current = 0
+
+        if row.door_model_id:
+            from app.configurator.models import DoorModel
+            model_result = await db.execute(
+                select(DoorModel.label).where(DoorModel.id == row.door_model_id)
+            )
+            door_model_label = model_result.scalar_one_or_none()
+
+            rc = await db.execute(
+                select(func.count(ProductionRoute.id))
+                .where(ProductionRoute.door_model_id == row.door_model_id)
+            )
+            route_total = rc.scalar_one() or 0
+
+        # Workshop progress
+        progress_result = await db.execute(
+            select(DoorWorkshopProgress)
+            .where(DoorWorkshopProgress.door_id == row.door_id)
+            .options(
+                selectinload(DoorWorkshopProgress.workshop),
+                selectinload(DoorWorkshopProgress.current_stage),
+            )
+            .order_by(DoorWorkshopProgress.phase, DoorWorkshopProgress.workshop_id)
+        )
+        progress_entries = list(progress_result.scalars().all())
+
+        workshop_progress: list[WorkshopProgressSchema] = []
+        for pe in progress_entries:
+            track_total = 0
+            track_current = 0
+            if row.door_model_id and pe.workshop_id:
+                tr = await db.execute(
+                    select(ProductionRoute)
+                    .where(
+                        ProductionRoute.door_model_id == row.door_model_id,
+                        ProductionRoute.phase == pe.phase,
+                        ProductionRoute.workshop_id == pe.workshop_id,
+                    )
+                    .order_by(ProductionRoute.step_order)
+                )
+                track_steps = list(tr.scalars().all())
+                track_total = len(track_steps)
+                if pe.current_stage_id:
+                    for i, s in enumerate(track_steps):
+                        if s.stage_id == pe.current_stage_id:
+                            track_current = i + 1
+                            break
+                elif pe.status == "completed":
+                    track_current = track_total
+
+            workshop_progress.append(WorkshopProgressSchema(
+                workshop_id=pe.workshop_id,
+                workshop_name=pe.workshop.name if pe.workshop else "",
+                workshop_code=pe.workshop.code if pe.workshop else "",
+                workshop_color=pe.workshop.color if pe.workshop else None,
+                phase=pe.phase,
+                current_stage_id=pe.current_stage_id,
+                current_stage_name=pe.current_stage.name if pe.current_stage else None,
+                current_stage_code=pe.current_stage.code if pe.current_stage else None,
+                status=pe.status,
+                track_total_steps=track_total,
+                track_current_step=track_current,
+            ))
+
+        # Legacy: no progress entries — calc step from flat route
+        if not progress_entries and row.current_stage_id and row.door_model_id:
+            rr = await db.execute(
+                select(ProductionRoute)
+                .where(ProductionRoute.door_model_id == row.door_model_id)
+                .order_by(ProductionRoute.step_order)
+            )
+            for i, step in enumerate(rr.scalars().all()):
+                route_total = i + 1
+                if step.stage_id == row.current_stage_id:
+                    route_current = i + 1
+
+        deadline_aware = row.deadline
+        if deadline_aware.tzinfo is None:
+            deadline_aware = deadline_aware.replace(tzinfo=timezone.utc)
+        days_overdue = max(0, (now - deadline_aware).days)
+
+        items.append(OverdueDoorSchema(
+            door_id=row.door_id,
+            internal_number=row.internal_number,
+            marking=row.marking,
+            order_id=row.order_id,
+            order_number=row.order_number,
+            client_name=row.client_name,
+            door_model_id=row.door_model_id,
+            door_model_label=door_model_label,
+            current_stage_id=row.current_stage_id,
+            current_stage_name=row.current_stage_name,
+            current_stage_code=row.current_stage_code,
+            deadline=row.deadline,
+            days_overdue=days_overdue,
+            route_total_steps=route_total,
+            route_current_step=route_current,
+            workshop_progress=workshop_progress,
+        ))
+
+    return OverdueQueueResponse(items=items, total=total)

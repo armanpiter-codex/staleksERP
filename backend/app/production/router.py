@@ -9,10 +9,18 @@ from app.auth.schemas import TokenPayload
 from app.database import get_db
 from app.production import services
 from app.production.schemas import (
+    BatchLaunchSchema,
+    DoorLaunchCheckSchema,
+    DoorLaunchCheckUpdateSchema,
     DoorPrintDataSchema,
     DoorStageHistorySchema,
+    LaunchCheckDefinitionCreateSchema,
+    LaunchCheckDefinitionSchema,
+    LaunchCheckDefinitionUpdateSchema,
     MoveDoorStageSchema,
     MoveDoorToStageSchema,
+    OverdueQueueResponse,
+    PendingDoorSchema,
     ProductionDoorSchema,
     ProductionQueueResponse,
     ProductionRouteSchema,
@@ -20,6 +28,7 @@ from app.production.schemas import (
     ProductionStageSchema,
     ProductionStageUpdateSchema,
     ProductionWorkshopSchema,
+    ReorderLaunchChecksSchema,
     ReorderStagesSchema,
     ReorderWorkshopsSchema,
     RoutePhaseSchema,
@@ -229,6 +238,19 @@ async def get_workshop_counters(
     db: AsyncSession = Depends(get_db),
 ) -> list[WorkshopCounterSchema]:
     return await services.get_workshop_counters(db)
+
+
+# ─── Overdue doors (Sprint 18) ───────────────────────────────────────────────
+
+@router.get("/overdue", response_model=OverdueQueueResponse)
+async def get_overdue_doors(
+    search: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: TokenPayload = Depends(require_permission("production:read")),
+    db: AsyncSession = Depends(get_db),
+) -> OverdueQueueResponse:
+    return await services.get_overdue_doors(db, search=search, limit=limit, offset=offset)
 
 
 # ─── Door stage movement ────────────────────────────────────────────────────
@@ -518,3 +540,101 @@ async def _build_door_response(db: AsyncSession, door) -> ProductionDoorSchema:
         total_phases=total_phases,
         workshop_progress=workshop_progress,
     )
+
+
+# ─── Launch Check Definitions (Sprint 17) ────────────────────────────────────
+
+@router.get("/launch-checks", response_model=list[LaunchCheckDefinitionSchema])
+async def list_launch_checks(
+    include_inactive: bool = Query(False),
+    current_user: TokenPayload = Depends(require_permission("production:read")),
+    db: AsyncSession = Depends(get_db),
+) -> list[LaunchCheckDefinitionSchema]:
+    checks = await services.list_check_definitions(db, include_inactive=include_inactive)
+    return [LaunchCheckDefinitionSchema.model_validate(c) for c in checks]
+
+
+@router.post("/launch-checks", response_model=LaunchCheckDefinitionSchema, status_code=201)
+async def create_launch_check(
+    data: LaunchCheckDefinitionCreateSchema,
+    current_user: TokenPayload = Depends(require_permission("production:stages")),
+    db: AsyncSession = Depends(get_db),
+) -> LaunchCheckDefinitionSchema:
+    check = await services.create_check_definition(db, data)
+    return LaunchCheckDefinitionSchema.model_validate(check)
+
+
+@router.patch("/launch-checks/reorder", response_model=list[LaunchCheckDefinitionSchema])
+async def reorder_launch_checks(
+    data: ReorderLaunchChecksSchema,
+    current_user: TokenPayload = Depends(require_permission("production:stages")),
+    db: AsyncSession = Depends(get_db),
+) -> list[LaunchCheckDefinitionSchema]:
+    checks = await services.reorder_check_definitions(db, data)
+    return [LaunchCheckDefinitionSchema.model_validate(c) for c in checks]
+
+
+@router.patch("/launch-checks/{check_id}", response_model=LaunchCheckDefinitionSchema)
+async def update_launch_check(
+    check_id: uuid.UUID = Path(...),
+    data: LaunchCheckDefinitionUpdateSchema = ...,
+    current_user: TokenPayload = Depends(require_permission("production:stages")),
+    db: AsyncSession = Depends(get_db),
+) -> LaunchCheckDefinitionSchema:
+    check = await services.update_check_definition(db, check_id, data)
+    return LaunchCheckDefinitionSchema.model_validate(check)
+
+
+# ─── Pending Doors & Door Launch Checks (Sprint 17) ──────────────────────────
+
+@router.get("/pending-doors", response_model=list[PendingDoorSchema])
+async def list_pending_doors(
+    check_ids: str | None = Query(None, description="Comma-separated check definition UUIDs to filter by"),
+    priority: bool | None = Query(None),
+    search: str | None = Query(None),
+    current_user: TokenPayload = Depends(require_permission("production:launch")),
+    db: AsyncSession = Depends(get_db),
+) -> list[PendingDoorSchema]:
+    parsed_check_ids = None
+    if check_ids:
+        parsed_check_ids = [uuid.UUID(cid.strip()) for cid in check_ids.split(",") if cid.strip()]
+    return await services.get_pending_doors(
+        db,
+        check_ids=parsed_check_ids,
+        priority_filter=priority,
+        search=search,
+    )
+
+
+@router.get("/doors/{door_id}/launch-checks", response_model=list[DoorLaunchCheckSchema])
+async def get_door_launch_checks(
+    door_id: uuid.UUID = Path(...),
+    current_user: TokenPayload = Depends(require_permission("production:launch")),
+    db: AsyncSession = Depends(get_db),
+) -> list[DoorLaunchCheckSchema]:
+    return await services.get_door_launch_checks(db, door_id)
+
+
+@router.patch(
+    "/doors/{door_id}/launch-checks/{check_id}",
+    response_model=DoorLaunchCheckSchema,
+)
+async def update_door_launch_check(
+    door_id: uuid.UUID = Path(...),
+    check_id: uuid.UUID = Path(...),
+    data: DoorLaunchCheckUpdateSchema = ...,
+    current_user: TokenPayload = Depends(require_permission("production:launch")),
+    db: AsyncSession = Depends(get_db),
+) -> DoorLaunchCheckSchema:
+    user_id = uuid.UUID(current_user.sub)
+    return await services.update_door_launch_check(db, door_id, check_id, data, user_id)
+
+
+@router.post("/batch-launch", status_code=200)
+async def batch_launch(
+    data: BatchLaunchSchema,
+    current_user: TokenPayload = Depends(require_permission("production:launch")),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    user_id = uuid.UUID(current_user.sub)
+    return await services.batch_launch_doors(db, data, user_id)

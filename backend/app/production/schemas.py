@@ -320,3 +320,121 @@ class StagePrintDataSchema(BaseModel):
     print_date: str
     total_doors: int
     doors: list[StagePrintDoorSchema]
+
+
+# ─── Launch Check schemas (Sprint 17) ────────────────────────────────────────
+
+class LaunchCheckDefinitionSchema(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    description: str | None
+    is_required: bool
+    sort_order: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LaunchCheckDefinitionCreateSchema(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-z][a-z0-9_]*$")
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str | None = None
+    is_required: bool = True
+    sort_order: int = Field(0, ge=0)
+    is_active: bool = True
+
+
+class LaunchCheckDefinitionUpdateSchema(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    is_required: bool | None = None
+    sort_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+class ReorderLaunchChecksSchema(BaseModel):
+    check_ids: list[uuid.UUID] = Field(..., min_length=1)
+
+
+class DoorLaunchCheckSchema(BaseModel):
+    id: uuid.UUID
+    door_id: uuid.UUID
+    check_id: uuid.UUID
+    check_name: str
+    check_description: str | None
+    is_required: bool
+    sort_order: int
+    is_done: bool
+    done_by: uuid.UUID | None
+    done_at: datetime | None
+    notes: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DoorLaunchCheckUpdateSchema(BaseModel):
+    is_done: bool
+    notes: str | None = None
+
+
+class PendingDoorCheckStatusSchema(BaseModel):
+    check_id: uuid.UUID
+    check_code: str
+    check_name: str
+    is_done: bool
+
+
+class PendingDoorSchema(BaseModel):
+    id: uuid.UUID
+    internal_number: str
+    marking: str | None
+    order_id: uuid.UUID
+    order_number: str
+    item_id: uuid.UUID
+    door_model_id: uuid.UUID | None
+    door_model_label: str | None
+    client_name: str | None
+    facility_name: str | None
+    floor: str | None
+    building_block: str | None
+    apartment: str | None
+    priority: bool
+    checks_total: int
+    checks_done: int
+    is_ready: bool  # all required checks done
+    check_statuses: list[PendingDoorCheckStatusSchema] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BatchLaunchSchema(BaseModel):
+    door_ids: list[uuid.UUID] = Field(..., min_length=1)
+
+
+# ─── Overdue schemas (Sprint 18) ─────────────────────────────────────────────
+
+class OverdueDoorSchema(BaseModel):
+    door_id: uuid.UUID
+    internal_number: str
+    marking: str | None
+    order_id: uuid.UUID
+    order_number: str
+    client_name: str | None
+    door_model_id: uuid.UUID | None
+    door_model_label: str | None
+    current_stage_id: uuid.UUID | None
+    current_stage_name: str | None
+    current_stage_code: str | None
+    deadline: datetime
+    days_overdue: int
+    route_total_steps: int
+    route_current_step: int
+    workshop_progress: list[WorkshopProgressSchema] = []
+
+
+class OverdueQueueResponse(BaseModel):
+    items: list[OverdueDoorSchema]
+    total: int

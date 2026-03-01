@@ -24,6 +24,14 @@ import type {
   DoorStageHistory,
   DoorPrintData,
   StagePrintData,
+  LaunchCheckDefinition,
+  LaunchCheckDefinitionCreate,
+  LaunchCheckDefinitionUpdate,
+  DoorLaunchCheck,
+  PendingDoor,
+  PendingDoorsParams,
+  BatchLaunchResult,
+  OverdueQueueResponse,
 } from "@/types/production";
 
 const BASE = "/production";
@@ -184,5 +192,87 @@ export async function getStagePrintData(
   const { data } = await api.get<StagePrintData>(`${BASE}/stages/${stageId}/print-data`, {
     params: { limit },
   });
+  return data;
+}
+
+// ─── Launch Checks (Sprint 17) ─────────────────────────────────────────────
+
+export async function listLaunchChecks(
+  includeInactive = false,
+): Promise<LaunchCheckDefinition[]> {
+  const { data } = await api.get<LaunchCheckDefinition[]>(`${BASE}/launch-checks`, {
+    params: includeInactive ? { include_inactive: true } : {},
+  });
+  return data;
+}
+
+export async function createLaunchCheck(
+  payload: LaunchCheckDefinitionCreate,
+): Promise<LaunchCheckDefinition> {
+  const { data } = await api.post<LaunchCheckDefinition>(`${BASE}/launch-checks`, payload);
+  return data;
+}
+
+export async function updateLaunchCheck(
+  checkId: string,
+  payload: LaunchCheckDefinitionUpdate,
+): Promise<LaunchCheckDefinition> {
+  const { data } = await api.patch<LaunchCheckDefinition>(
+    `${BASE}/launch-checks/${checkId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function reorderLaunchChecks(checkIds: string[]): Promise<LaunchCheckDefinition[]> {
+  const { data } = await api.patch<LaunchCheckDefinition[]>(`${BASE}/launch-checks/reorder`, {
+    check_ids: checkIds,
+  });
+  return data;
+}
+
+export async function listPendingDoors(params?: PendingDoorsParams): Promise<PendingDoor[]> {
+  const queryParams: Record<string, string> = {};
+  if (params?.check_ids?.length) {
+    queryParams.check_ids = params.check_ids.join(",");
+  }
+  if (params?.priority !== undefined) queryParams.priority = String(params.priority);
+  if (params?.search) queryParams.search = params.search;
+  const { data } = await api.get<PendingDoor[]>(`${BASE}/pending-doors`, { params: queryParams });
+  return data;
+}
+
+export async function getDoorLaunchChecks(doorId: string): Promise<DoorLaunchCheck[]> {
+  const { data } = await api.get<DoorLaunchCheck[]>(`${BASE}/doors/${doorId}/launch-checks`);
+  return data;
+}
+
+export async function updateDoorLaunchCheck(
+  doorId: string,
+  checkId: string,
+  payload: { is_done: boolean; notes?: string | null },
+): Promise<DoorLaunchCheck> {
+  const { data } = await api.patch<DoorLaunchCheck>(
+    `${BASE}/doors/${doorId}/launch-checks/${checkId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function batchLaunch(doorIds: string[]): Promise<BatchLaunchResult> {
+  const { data } = await api.post<BatchLaunchResult>(`${BASE}/batch-launch`, {
+    door_ids: doorIds,
+  });
+  return data;
+}
+
+// ─── Overdue Doors (Sprint 18) ──────────────────────────────────────────────
+
+export async function getOverdueDoors(params?: {
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<OverdueQueueResponse> {
+  const { data } = await api.get<OverdueQueueResponse>(`${BASE}/overdue`, { params });
   return data;
 }
