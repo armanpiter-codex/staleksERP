@@ -112,6 +112,11 @@ class OrderDoor(Base):
     # Приоритет (МОП ставит для конкретных дверей)
     priority: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Текущий этап производства (Sprint 13)
+    current_stage_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("production_stages.id", ondelete="SET NULL")
+    )
+
     qr_code: Mapped[str | None] = mapped_column(String(500))
     notes: Mapped[str | None] = mapped_column(Text)
 
@@ -126,6 +131,7 @@ class OrderDoor(Base):
         Index("idx_order_doors_item_id", "order_item_id"),
         Index("idx_order_doors_status", "status"),
         Index("idx_order_doors_internal", "internal_number"),
+        Index("idx_order_doors_current_stage", "current_stage_id"),
     )
 
 

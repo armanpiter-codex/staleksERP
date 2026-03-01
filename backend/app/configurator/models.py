@@ -268,6 +268,11 @@ class DoorConfiguration(Base):
         default=ConfigurationStatus.draft,
     )
 
+    # Модель двери (Sprint 13 — для маршрутизации производства)
+    door_model_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("door_models.id", ondelete="SET NULL")
+    )
+
     # Шаблон: если True — глобальное ядро, переиспользуется в заказах
     is_template: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
@@ -292,6 +297,7 @@ class DoorConfiguration(Base):
         Index("idx_door_config_order_id", "order_id"),
         Index("idx_door_config_status", "status"),
         Index("idx_door_config_created_by", "created_by"),
+        Index("idx_door_config_model_id", "door_model_id"),
     )
 
 

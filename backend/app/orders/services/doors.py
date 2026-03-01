@@ -157,6 +157,7 @@ async def transition_door_status(
     door_id: uuid.UUID,
     new_status: DoorStatus,
     user_permissions: list[str] | None = None,
+    user_id: uuid.UUID | None = None,
 ) -> OrderDoor:
     order = await get_order(db, order_id)
     door = _find_door_in_order(order, door_id)
@@ -171,6 +172,12 @@ async def transition_door_status(
         _check_door_transition_permission(new_status, user_permissions)
 
     door.status = new_status
+
+    # Sprint 13: initialize production stage when door enters in_production
+    if new_status == DoorStatus.in_production and user_id:
+        from app.production.services.movement import initialize_door_production
+        await initialize_door_production(db, door.id, user_id)
+
     await db.flush()
     return door
 

@@ -411,6 +411,7 @@ async def transition_door_status(
     door = await service.transition_door_status(
         db, order_id, door_id, data.status,
         user_permissions=current_user.permissions,
+        user_id=uuid.UUID(current_user.sub),
     )
     await db.commit()
     order = await service.get_order(db, order_id)

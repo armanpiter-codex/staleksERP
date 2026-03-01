@@ -38,6 +38,10 @@ PERMISSIONS = [
     ("production:read", "Read production orders", "production"),
     ("production:manage", "Manage production queue", "production"),
     ("production:workshop_own", "Manage own workshop only", "production"),
+    # Production — Sprint 13
+    ("production:stages", "Manage production stages (CRUD)", "production"),
+    ("production:routes", "Manage production routes per model", "production"),
+    ("production:move_door", "Move door between production stages", "production"),
     # Tech cards
     ("techcard:read", "View tech cards", "techcard"),
     ("techcard:write", "Create and edit tech cards", "techcard"),
@@ -88,6 +92,7 @@ ROLES = [
             "configurator:view", "configurator:create", "configurator:edit", "configurator:admin",
             "kp:generate", "kp:view_all",
             "production:read", "production:manage",
+            "production:stages", "production:routes", "production:move_door",
             "techcard:read", "techcard:write",
             "timesheet:log_self", "timesheet:view_all",
             "notifications:receive",
@@ -144,6 +149,7 @@ ROLES = [
         [
             "doors:transition_to_in_production", "doors:transition_to_ready",
             "production:read", "production:manage", "production:workshop_own",
+            "production:move_door",
             "techcard:read", "techcard:write",
             "timesheet:log_self", "timesheet:view_all",
             "notifications:receive",
@@ -166,11 +172,12 @@ ROLES = [
     (
         "technologist",
         "Технолог",
-        "Настройка конфигуратора: модели, секции, поля, видимость",
+        "Настройка конфигуратора: модели, секции, поля, видимость, маршруты",
         True,
         [
             "configurator:view", "configurator:create",
             "configurator:edit", "configurator:admin",
+            "production:read", "production:stages", "production:routes",
         ],
     ),
     # Sprint 3: new roles

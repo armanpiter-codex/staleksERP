@@ -354,6 +354,7 @@ class DoorConfigurationSchema(BaseModel):
     cost_price: Decimal | None
     locked_price: Decimal | None = None
     locked_cost: Decimal | None = None
+    door_model_id: uuid.UUID | None = None
     is_template: bool = False
     status: ConfigurationStatus
     notes: str | None
@@ -370,6 +371,7 @@ class DoorConfigurationCreateSchema(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     quantity: int = Field(1, ge=1, le=9999)
     values: dict[str, Any] = Field(default_factory=dict)
+    door_model_id: uuid.UUID | None = None
     is_template: bool = False
     notes: str | None = None
     order_id: uuid.UUID | None = None
@@ -379,6 +381,7 @@ class DoorConfigurationUpdateSchema(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=200)
     quantity: int | None = Field(None, ge=1, le=9999)
     values: dict[str, Any] | None = None
+    door_model_id: uuid.UUID | None = None
     status: ConfigurationStatus | None = None
     notes: str | None = None
 

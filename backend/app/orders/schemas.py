@@ -43,6 +43,7 @@ class OrderDoorSchema(BaseModel):
     location_description: str | None
     status: DoorStatus
     priority: bool
+    current_stage_id: uuid.UUID | None = None
     qr_code: str | None
     notes: str | None
     created_at: datetime
