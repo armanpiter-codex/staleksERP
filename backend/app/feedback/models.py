@@ -24,16 +24,23 @@ class FeedbackPriority(str, enum.Enum):
 
 
 class FeedbackStatus(str, enum.Enum):
-    new = "new"                # Новый (не прочитан)
-    reviewing = "reviewing"    # На рассмотрении
-    resolved = "resolved"      # Решён
-    closed = "closed"          # Закрыт
+    new = "new"                    # Старый статус — для совместимости
+    clarifying = "clarifying"      # Идёт AI-диалог с юзером
+    confirmed = "confirmed"        # Юзер подтвердил, Telegram отправлен
+    reviewing = "reviewing"        # Администратор смотрит
+    resolved = "resolved"          # Решён
+    closed = "closed"              # Закрыт
 
 
 class FeedbackFileType(str, enum.Enum):
     image = "image"
     audio = "audio"
     document = "document"
+
+
+class MessageRole(str, enum.Enum):
+    user = "user"
+    assistant = "assistant"
 
 
 class Feedback(Base):
@@ -74,11 +81,15 @@ class Feedback(Base):
         nullable=True,
     )
 
+    # AI-диалог (Sprint 15)
+    dialog_turns: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    final_instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Статус и заметки
     status: Mapped[FeedbackStatus] = mapped_column(
         Enum(FeedbackStatus, name="feedback_status_enum", create_type=False),
         nullable=False,
-        default=FeedbackStatus.new,
+        default=FeedbackStatus.clarifying,
         index=True,
     )
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -97,6 +108,13 @@ class Feedback(Base):
         back_populates="feedback",
         cascade="all, delete-orphan",
         lazy="selectin",
+    )
+    messages: Mapped[list["FeedbackMessage"]] = relationship(
+        "FeedbackMessage",
+        back_populates="feedback",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="FeedbackMessage.created_at",
     )
 
 
@@ -129,4 +147,32 @@ class FeedbackAttachment(Base):
 
     feedback: Mapped["Feedback"] = relationship(
         "Feedback", back_populates="attachments"
+    )
+
+
+class FeedbackMessage(Base):
+    """Сообщение в AI-диалоге при уточнении фидбэка (Sprint 15)."""
+    __tablename__ = "feedback_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    feedback_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("feedback.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role: Mapped[MessageRole] = mapped_column(
+        Enum(MessageRole, name="feedback_message_role_enum", create_type=False),
+        nullable=False,
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    feedback: Mapped["Feedback"] = relationship(
+        "Feedback", back_populates="messages"
     )

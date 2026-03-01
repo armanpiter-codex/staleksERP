@@ -32,7 +32,7 @@ class Settings(BaseSettings):
         """Parse comma-separated ALLOWED_ORIGINS into a list."""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
-    # Telegram (Phase 2)
+    # Telegram (Phase 2 — внешний бот)
     TELEGRAM_BOT_TOKEN: str | None = None
     TELEGRAM_WEBHOOK_URL: str | None = None
 

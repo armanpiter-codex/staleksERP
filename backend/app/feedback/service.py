@@ -1,4 +1,4 @@
-"""Feedback — бизнес-логика: CRUD, файлы, AI-обработка."""
+"""Feedback — бизнес-логика: CRUD, файлы, AI-диалог, финализация."""
 import logging
 import uuid
 from typing import Sequence
@@ -7,8 +7,15 @@ from fastapi import UploadFile
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.common.exceptions import NotFoundException
-from app.feedback.ai import categorize_feedback, transcribe_audio
+from app.common.exceptions import BadRequestException, NotFoundException
+from app.feedback.ai import (
+    MAX_DIALOG_TURNS,
+    categorize_feedback,
+    clarify_feedback,
+    finalize_feedback as ai_finalize,
+    generate_next_message,
+    transcribe_audio,
+)
 from app.feedback.file_storage import (
     ALLOWED_AUDIO_TYPES,
     ALLOWED_IMAGE_TYPES,
@@ -20,8 +27,10 @@ from app.feedback.models import (
     FeedbackAttachment,
     FeedbackCategory,
     FeedbackFileType,
+    FeedbackMessage,
     FeedbackPriority,
     FeedbackStatus,
+    MessageRole,
 )
 from app.feedback.schemas import FeedbackUpdateSchema
 
@@ -45,12 +54,14 @@ async def create_feedback(
     *,
     user_id: uuid.UUID,
     content: str | None,
-    category: FeedbackCategory,
     page_url: str | None,
     audio: UploadFile | None,
     attachments: list[UploadFile],
 ) -> Feedback:
-    """Создать фидбэк: сохранить файлы, транскрибировать, AI-обработать."""
+    """
+    Создать фидбэк: сохранить файлы, транскрибировать, запустить AI-диалог.
+    Статус сразу = clarifying, первый вопрос AI добавляется в messages.
+    """
     feedback_id = uuid.uuid4()
 
     # --- Аудио ---
@@ -68,35 +79,15 @@ async def create_feedback(
     if not final_content.strip():
         final_content = "(голосовое сообщение без транскрипции)"
 
-    # --- AI-обработка ---
-    ai_summary: str | None = None
-    ai_category: FeedbackCategory | None = None
-    priority: FeedbackPriority | None = None
-
-    ai_result = await categorize_feedback(final_content, category.value)
-    if ai_result:
-        ai_summary = ai_result.get("summary")
-        try:
-            ai_category = FeedbackCategory(ai_result["category"])
-        except (KeyError, ValueError):
-            pass
-        try:
-            priority = FeedbackPriority(ai_result["priority"])
-        except (KeyError, ValueError):
-            pass
-
     # --- Запись в БД ---
     fb = Feedback(
         id=feedback_id,
         user_id=user_id,
         content=final_content,
-        category=category,
-        priority=priority,
+        category=FeedbackCategory.other,   # AI определит точную категорию при финализации
         page_url=page_url,
         voice_transcript=voice_transcript,
-        ai_summary=ai_summary,
-        ai_category=ai_category,
-        status=FeedbackStatus.new,
+        status=FeedbackStatus.clarifying,
     )
     db.add(fb)
 
@@ -126,8 +117,134 @@ async def create_feedback(
         ))
 
     await db.flush()
+
+    # --- AI: первый уточняющий вопрос ---
+    first_question = await clarify_feedback(final_content, voice_transcript)
+    if not first_question:
+        first_question = (
+            "Спасибо за обратную связь! Можете уточнить детали или "
+            "нажать «Подтвердить и отправить»."
+        )
+
+    db.add(FeedbackMessage(
+        feedback_id=feedback_id,
+        role=MessageRole.assistant,
+        content=first_question,
+    ))
+    await db.flush()
     await db.refresh(fb)
     return fb
+
+
+# ---------------------------------------------------------------------------
+# Dialog
+# ---------------------------------------------------------------------------
+
+async def get_messages(
+    db: AsyncSession,
+    feedback_id: uuid.UUID,
+) -> list[FeedbackMessage]:
+    """Получить все сообщения диалога в хронологическом порядке."""
+    result = await db.execute(
+        select(FeedbackMessage)
+        .where(FeedbackMessage.feedback_id == feedback_id)
+        .order_by(FeedbackMessage.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def _add_message(
+    db: AsyncSession,
+    feedback_id: uuid.UUID,
+    role: MessageRole,
+    content: str,
+) -> FeedbackMessage:
+    msg = FeedbackMessage(feedback_id=feedback_id, role=role, content=content)
+    db.add(msg)
+    await db.flush()
+    return msg
+
+
+async def process_user_reply(
+    db: AsyncSession,
+    fb: Feedback,
+    user_content: str,
+) -> tuple[Feedback, FeedbackMessage | None]:
+    """
+    Обработать ответ пользователя в диалоге.
+    Возвращает (feedback, ai_message | None).
+    Если turns >= MAX_DIALOG_TURNS — автоматически финализирует.
+    """
+    if fb.status != FeedbackStatus.clarifying:
+        raise BadRequestException("Фидбэк не в стадии уточнения")
+
+    # Добавляем сообщение пользователя
+    await _add_message(db, fb.id, MessageRole.user, user_content)
+    fb.dialog_turns += 1
+    await db.flush()
+
+    # Авто-финализация при достижении лимита
+    if fb.dialog_turns >= MAX_DIALOG_TURNS:
+        await _do_finalize(db, fb)
+        return fb, None
+
+    # Генерируем следующий вопрос AI
+    messages = await get_messages(db, fb.id)
+    history = [{"role": m.role.value, "content": m.content} for m in messages]
+    is_last = fb.dialog_turns == MAX_DIALOG_TURNS - 1
+
+    ai_response = await generate_next_message(fb.content, history, is_last_turn=is_last)
+    if not ai_response:
+        ai_response = "Понял. Нажмите «Подтвердить и отправить» когда будете готовы."
+
+    ai_msg = await _add_message(db, fb.id, MessageRole.assistant, ai_response)
+    return fb, ai_msg
+
+
+async def confirm_feedback(db: AsyncSession, fb: Feedback) -> Feedback:
+    """
+    Пользователь подтвердил фидбэк — финализировать и отправить в Telegram.
+    """
+    if fb.status not in (FeedbackStatus.clarifying, FeedbackStatus.new):
+        raise BadRequestException("Фидбэк нельзя подтвердить в этом статусе")
+
+    await _do_finalize(db, fb)
+    return fb
+
+
+async def _do_finalize(db: AsyncSession, fb: Feedback) -> None:
+    """
+    Внутренняя финализация:
+    - Генерация AI-инструкции для разработчика
+    - Обновление category/priority/summary
+    - Смена статуса на confirmed
+    Внешний бот (Telegram) сам заберёт confirmed фидбэки по крону.
+    """
+    messages = await get_messages(db, fb.id)
+    history = [{"role": m.role.value, "content": m.content} for m in messages]
+
+    result = await ai_finalize(fb.content, history, fb.page_url)
+
+    if result:
+        fb.final_instruction = result.get("instruction") or fb.content
+        fb.ai_summary = result.get("summary") or fb.ai_summary
+        try:
+            fb.ai_category = FeedbackCategory(result["category"])
+            fb.category = fb.ai_category
+        except (KeyError, ValueError):
+            pass
+        try:
+            fb.priority = FeedbackPriority(result["priority"])
+        except (KeyError, ValueError):
+            fb.priority = FeedbackPriority.medium
+    else:
+        # AI недоступен — используем исходный контент
+        fb.final_instruction = fb.ai_summary or fb.content
+        if not fb.priority:
+            fb.priority = FeedbackPriority.medium
+
+    fb.status = FeedbackStatus.confirmed
+    await db.flush()
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +280,9 @@ async def list_feedback(
 
 
 async def count_new(db: AsyncSession) -> int:
-    """Кол-во непрочитанных обращений."""
+    """Кол-во обращений требующих внимания администратора (new + confirmed)."""
     q = select(sa_func.count()).select_from(Feedback).where(
-        Feedback.status == FeedbackStatus.new
+        Feedback.status.in_([FeedbackStatus.new, FeedbackStatus.confirmed])
     )
     return (await db.execute(q)).scalar_one()
 

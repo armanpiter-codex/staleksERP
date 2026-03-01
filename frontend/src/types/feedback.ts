@@ -1,7 +1,14 @@
 export type FeedbackCategory = "bug" | "suggestion" | "question" | "other";
 export type FeedbackPriority = "high" | "medium" | "low";
-export type FeedbackStatus = "new" | "reviewing" | "resolved" | "closed";
+export type FeedbackStatus =
+  | "new"
+  | "clarifying"   // Sprint 15: идёт AI-диалог
+  | "confirmed"    // Sprint 15: подтверждено, Telegram отправлен
+  | "reviewing"
+  | "resolved"
+  | "closed";
 export type FeedbackFileType = "image" | "audio" | "document";
+export type MessageRole = "user" | "assistant";
 
 export interface FeedbackAttachment {
   id: string;
@@ -19,6 +26,14 @@ export interface FeedbackAuthor {
   full_name: string;
 }
 
+export interface FeedbackMessage {
+  id: string;
+  feedback_id: string;
+  role: MessageRole;
+  content: string;
+  created_at: string;
+}
+
 export interface FeedbackItem {
   id: string;
   user_id: string | null;
@@ -32,7 +47,10 @@ export interface FeedbackItem {
   ai_summary: string | null;
   ai_category: FeedbackCategory | null;
   admin_notes: string | null;
+  dialog_turns: number;
+  final_instruction: string | null;
   attachments: FeedbackAttachment[];
+  messages: FeedbackMessage[];
   created_at: string;
   updated_at: string;
 }
@@ -40,4 +58,10 @@ export interface FeedbackItem {
 export interface PaginatedFeedback {
   items: FeedbackItem[];
   total: number;
+}
+
+export interface FeedbackDialogResponse {
+  feedback_status: FeedbackStatus;
+  messages: FeedbackMessage[];
+  is_finalized: boolean;
 }
