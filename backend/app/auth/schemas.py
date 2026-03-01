@@ -114,6 +114,10 @@ class AssignRolesRequest(BaseModel):
     role_ids: list[uuid.UUID]
 
 
+class UpdateRolePermissionsRequest(BaseModel):
+    permission_ids: list[uuid.UUID]
+
+
 # ---- Token Payload (decoded from JWT) ----
 
 class TokenPayload(BaseModel):

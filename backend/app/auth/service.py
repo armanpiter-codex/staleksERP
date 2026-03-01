@@ -231,3 +231,57 @@ async def get_role_by_id(db: AsyncSession, role_id: uuid.UUID) -> Role | None:
         select(Role).where(Role.id == role_id).options(selectinload(Role.permissions))
     )
     return result.scalar_one_or_none()
+
+
+async def update_role_permissions(
+    db: AsyncSession,
+    role_id: uuid.UUID,
+    permission_ids: list[uuid.UUID],
+) -> Role:
+    """Replace all permissions for a role. Rejects changes to 'owner' role."""
+    from app.auth.models import RolePermission
+    from app.common.redis_client import get_redis
+
+    role = await get_role_by_id(db, role_id)
+    if not role:
+        raise NotFoundException(f"Role {role_id} not found")
+
+    if role.name == "owner":
+        raise BadRequestException("Cannot modify owner role permissions")
+
+    # Validate permission IDs exist
+    if permission_ids:
+        result = await db.execute(
+            select(Permission.id).where(Permission.id.in_(permission_ids))
+        )
+        existing_ids = {row[0] for row in result.all()}
+        missing = set(permission_ids) - existing_ids
+        if missing:
+            raise BadRequestException(f"Unknown permission IDs: {missing}")
+
+    # Delete existing role_permissions
+    from sqlalchemy import delete
+    await db.execute(
+        delete(RolePermission).where(RolePermission.role_id == role_id)
+    )
+
+    # Insert new
+    for pid in permission_ids:
+        db.add(RolePermission(role_id=role_id, permission_id=pid))
+
+    await db.flush()
+
+    # Invalidate JWT for all users with this role
+    user_result = await db.execute(
+        select(UserRole.user_id).where(UserRole.role_id == role_id)
+    )
+    affected_user_ids = [str(row[0]) for row in user_result.all()]
+
+    if affected_user_ids:
+        redis = await get_redis()
+        ttl = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        for uid in affected_user_ids:
+            await redis.setex(f"revoked:{uid}", ttl, "1")
+
+    # Re-fetch with permissions
+    return await get_role_by_id(db, role_id)

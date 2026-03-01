@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plus, Edit2, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, Edit2, Eye, EyeOff, Printer } from "lucide-react";
 import clsx from "clsx";
 import type { DoorFieldDefinition, DoorType } from "@/types/configurator";
 import { DOOR_TYPE_LABELS } from "@/types/configurator";
@@ -87,6 +87,7 @@ export function FieldsTab({ fields, groups, onRefresh }: FieldsTabProps) {
                 <th className="px-4 py-2 font-medium">Применимость</th>
                 <th className="px-4 py-2 font-medium text-center">Активно</th>
                 <th className="px-4 py-2 font-medium text-center">В заказе</th>
+                <th className="px-4 py-2 font-medium text-center">Печать</th>
                 <th className="px-4 py-2 font-medium w-12"></th>
               </tr>
             </thead>
@@ -130,6 +131,11 @@ export function FieldsTab({ fields, groups, onRefresh }: FieldsTabProps) {
                     {f.is_display
                       ? <Eye className="mx-auto h-4 w-4 text-staleks-lime" />
                       : <EyeOff className="mx-auto h-4 w-4 text-gray-200" />}
+                  </td>
+                  <td className="px-4 py-2 text-center">
+                    {f.is_print
+                      ? <Printer className="mx-auto h-4 w-4 text-blue-500" />
+                      : <Printer className="mx-auto h-4 w-4 text-gray-200" />}
                   </td>
                   <td className="px-4 py-2">
                     <button onClick={(e) => { e.stopPropagation(); setEditField(f); }} className="rounded p-1 text-gray-400 hover:text-gray-700">

@@ -18,6 +18,7 @@ PERMISSIONS = [
     # Auth
     ("auth:manage_users", "Manage users", "auth"),
     ("auth:manage_roles", "Manage roles and permissions", "auth"),
+    ("auth:manage_permissions", "Manage role permission assignments", "auth"),
     # Orders
     ("orders:read", "Read all orders", "orders"),
     ("orders:write", "Create and update orders", "orders"),
@@ -83,7 +84,7 @@ ROLES = [
         "Управление ролями, справочниками, интеграциями",
         True,
         [
-            "auth:manage_users", "auth:manage_roles",
+            "auth:manage_users", "auth:manage_roles", "auth:manage_permissions",
             "orders:read", "orders:write",
             "orders:read_b2b", "orders:write_b2b",
             "orders:read_b2c", "orders:write_b2c",
@@ -175,6 +176,7 @@ ROLES = [
         "Настройка конфигуратора: модели, секции, поля, видимость, маршруты",
         True,
         [
+            "auth:manage_permissions",
             "configurator:view", "configurator:create",
             "configurator:edit", "configurator:admin",
             "production:read", "production:stages", "production:routes",

@@ -165,6 +165,10 @@ class DoorFieldDefinition(Base):
     is_display: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     display_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Отображение на печатной форме
+    is_print: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    print_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

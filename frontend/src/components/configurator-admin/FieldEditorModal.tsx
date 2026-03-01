@@ -47,6 +47,8 @@ export function FieldEditorModal({ field, groups, onClose, onSaved }: FieldEdito
   const [bulkText, setBulkText] = useState("");
   const [isDisplay, setIsDisplay] = useState(field?.is_display ?? true);
   const [displayOrder, setDisplayOrder] = useState<number | "">(field?.display_order ?? "");
+  const [isPrint, setIsPrint] = useState(field?.is_print ?? true);
+  const [printOrder, setPrintOrder] = useState<number | "">(field?.print_order ?? "");
 
   const handleLabelChange = (val: string) => {
     setLabel(val);
@@ -98,6 +100,8 @@ export function FieldEditorModal({ field, groups, onClose, onSaved }: FieldEdito
           options: ["select", "multiselect"].includes(fieldType) ? options : null,
           is_display: isDisplay,
           display_order: displayOrder !== "" ? displayOrder : null,
+          is_print: isPrint,
+          print_order: printOrder !== "" ? printOrder : null,
         };
         await createFieldDefinition(payload);
       } else {
@@ -110,6 +114,8 @@ export function FieldEditorModal({ field, groups, onClose, onSaved }: FieldEdito
           options: ["select", "multiselect"].includes(fieldType) ? options : null,
           is_display: isDisplay,
           display_order: displayOrder !== "" ? displayOrder : null,
+          is_print: isPrint,
+          print_order: printOrder !== "" ? printOrder : null,
         };
         await updateFieldDefinition(field!.code, payload);
       }
@@ -250,6 +256,29 @@ export function FieldEditorModal({ field, groups, onClose, onSaved }: FieldEdito
                   type="number"
                   value={displayOrder}
                   onChange={(e) => setDisplayOrder(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="авто"
+                  min={0}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-staleks-lime"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Print form visibility */}
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Печатная форма</p>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={isPrint} onChange={(e) => setIsPrint(e.target.checked)}
+                  className="rounded border-gray-300 text-staleks-lime focus:ring-staleks-lime" />
+                Показывать на печатной форме
+              </label>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-500">Порядок на форме</label>
+                <input
+                  type="number"
+                  value={printOrder}
+                  onChange={(e) => setPrintOrder(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="авто"
                   min={0}
                   className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-staleks-lime"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronRight, Save, Loader2, Plus, Trash2, GripVertical } from "lucide-react";
+import { ChevronRight, Save, Loader2, Plus, Trash2, GripVertical, Copy } from "lucide-react";
 import clsx from "clsx";
 import { listStages, listAllRoutes, setRouteForModel } from "@/lib/productionApi";
 import { listModels } from "@/lib/configuratorApi";
@@ -123,6 +123,25 @@ export function RoutesManagement() {
     }
   };
 
+  const copyFromModel = (sourceModelId: string) => {
+    const source = routes.find((r) => r.door_model_id === sourceModelId);
+    if (!source || source.steps.length === 0) return;
+    setEditSteps(
+      source.steps.map((s) => ({
+        stage_id: s.stage_id,
+        step_order: s.step_order,
+        is_optional: s.is_optional,
+        notes: s.notes,
+      })),
+    );
+    setDirty(true);
+  };
+
+  // Models that have routes configured (for copy source)
+  const modelsWithRoutes = models.filter(
+    (m) => m.id !== selectedModelId && routes.some((r) => r.door_model_id === m.id && r.steps.length > 0),
+  );
+
   if (loading) return <Spinner size="lg" />;
 
   const selectedModel = models.find((m) => m.id === selectedModelId);
@@ -186,6 +205,25 @@ export function RoutesManagement() {
             </h3>
             {selectedModelId && (
               <div className="flex items-center gap-2">
+                {modelsWithRoutes.length > 0 && (
+                  <div className="relative">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) copyFromModel(e.target.value);
+                      }}
+                      className="appearance-none text-xs border border-gray-200 rounded-lg pl-7 pr-2 py-1.5 bg-white text-gray-600 hover:border-gray-300 cursor-pointer"
+                    >
+                      <option value="">Копировать из...</option>
+                      {modelsWithRoutes.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label} ({m.code})
+                        </option>
+                      ))}
+                    </select>
+                    <Copy size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                )}
                 <button
                   onClick={addStep}
                   disabled={usedStageIds.size >= stages.length}

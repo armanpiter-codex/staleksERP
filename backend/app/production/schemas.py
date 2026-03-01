@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -129,3 +130,81 @@ class DoorStageHistorySchema(BaseModel):
     moved_by_name: str
     notes: str | None
     moved_at: datetime
+
+
+# ─── Print form schemas ──────────────────────────────────────────────────────
+
+class PrintFieldValueSchema(BaseModel):
+    field_code: str
+    field_label: str
+    field_value: str
+    unit: str | None = None
+    group_code: str
+    group_label: str
+
+
+class PrintFieldGroupSchema(BaseModel):
+    group_code: str
+    group_label: str
+    fields: list[PrintFieldValueSchema]
+
+
+class RouteStageForPrintSchema(BaseModel):
+    stage_name: str
+    step_order: int
+    is_completed: bool
+    is_current: bool
+    is_optional: bool = False
+
+
+class DoorPrintDataSchema(BaseModel):
+    # Door identity
+    door_id: uuid.UUID
+    internal_number: str
+    marking: str | None = None
+    # Order info
+    order_number: str
+    client_name: str
+    facility_name: str | None = None
+    # Door location
+    floor: str | None = None
+    building_block: str | None = None
+    apartment_number: str | None = None
+    location_description: str | None = None
+    # Model
+    door_model_label: str | None = None
+    door_type: str | None = None
+    configuration_name: str | None = None
+    # Configuration fields grouped
+    field_groups: list[PrintFieldGroupSchema] = []
+    # Variant values (resolved)
+    variant_fields: list[PrintFieldValueSchema] = []
+    # Production progress
+    current_stage_name: str | None = None
+    route_current_step: int = 0
+    route_total_steps: int = 0
+    route_stages: list[RouteStageForPrintSchema] = []
+    # Priority & notes
+    priority: bool = False
+    item_notes: str | None = None
+    door_notes: str | None = None
+    # Metadata
+    print_date: str
+
+
+class StagePrintDoorSchema(BaseModel):
+    internal_number: str
+    marking: str | None = None
+    order_number: str
+    door_model_label: str | None = None
+    height: str | None = None
+    width: str | None = None
+    priority: bool = False
+
+
+class StagePrintDataSchema(BaseModel):
+    stage_name: str
+    stage_code: str
+    print_date: str
+    total_doors: int
+    doors: list[StagePrintDoorSchema]

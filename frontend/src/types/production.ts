@@ -113,6 +113,75 @@ export interface DoorStageHistory {
   moved_at: string;
 }
 
+// ─── Print Forms ───────────────────────────────────────────────────────────
+
+export interface PrintFieldValue {
+  field_code: string;
+  field_label: string;
+  field_value: string;
+  unit: string | null;
+  group_code: string;
+  group_label: string;
+}
+
+export interface PrintFieldGroup {
+  group_code: string;
+  group_label: string;
+  fields: PrintFieldValue[];
+}
+
+export interface RouteStageForPrint {
+  stage_name: string;
+  step_order: number;
+  is_completed: boolean;
+  is_current: boolean;
+  is_optional: boolean;
+}
+
+export interface DoorPrintData {
+  door_id: string;
+  internal_number: string;
+  marking: string | null;
+  order_number: string;
+  client_name: string;
+  facility_name: string | null;
+  floor: string | null;
+  building_block: string | null;
+  apartment_number: string | null;
+  location_description: string | null;
+  door_model_label: string | null;
+  door_type: string | null;
+  configuration_name: string | null;
+  field_groups: PrintFieldGroup[];
+  variant_fields: PrintFieldValue[];
+  current_stage_name: string | null;
+  route_current_step: number;
+  route_total_steps: number;
+  route_stages: RouteStageForPrint[];
+  priority: boolean;
+  item_notes: string | null;
+  door_notes: string | null;
+  print_date: string;
+}
+
+export interface StagePrintDoor {
+  internal_number: string;
+  marking: string | null;
+  order_number: string;
+  door_model_label: string | null;
+  height: string | null;
+  width: string | null;
+  priority: boolean;
+}
+
+export interface StagePrintData {
+  stage_name: string;
+  stage_code: string;
+  print_date: string;
+  total_doors: number;
+  doors: StagePrintDoor[];
+}
+
 // ─── Queue Params ───────────────────────────────────────────────────────────
 
 export interface QueueParams {

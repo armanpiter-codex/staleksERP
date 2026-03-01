@@ -16,6 +16,8 @@ import type {
   MoveDoorPayload,
   MoveDoorToStagePayload,
   DoorStageHistory,
+  DoorPrintData,
+  StagePrintData,
 } from "@/types/production";
 
 const BASE = "/production";
@@ -120,5 +122,22 @@ export async function moveDoorToStage(
 
 export async function getDoorHistory(doorId: string): Promise<DoorStageHistory[]> {
   const { data } = await api.get<DoorStageHistory[]>(`${BASE}/doors/${doorId}/history`);
+  return data;
+}
+
+// ─── Print Forms ───────────────────────────────────────────────────────────
+
+export async function getDoorPrintData(doorId: string): Promise<DoorPrintData> {
+  const { data } = await api.get<DoorPrintData>(`${BASE}/doors/${doorId}/print-data`);
+  return data;
+}
+
+export async function getStagePrintData(
+  stageId: string,
+  limit = 100,
+): Promise<StagePrintData> {
+  const { data } = await api.get<StagePrintData>(`${BASE}/stages/${stageId}/print-data`, {
+    params: { limit },
+  });
   return data;
 }

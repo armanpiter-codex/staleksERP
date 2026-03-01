@@ -8,6 +8,7 @@ from app.auth.schemas import TokenPayload
 from app.database import get_db
 from app.production import services
 from app.production.schemas import (
+    DoorPrintDataSchema,
     DoorStageHistorySchema,
     MoveDoorStageSchema,
     MoveDoorToStageSchema,
@@ -21,6 +22,7 @@ from app.production.schemas import (
     RouteStepSchema,
     SetRouteSchema,
     StageCounterSchema,
+    StagePrintDataSchema,
 )
 
 router = APIRouter(prefix="/production", tags=["Production"])
@@ -287,6 +289,27 @@ async def get_door_history(
             moved_at=entry.moved_at,
         ))
     return result
+
+
+# ─── Print forms ──────────────────────────────────────────────────────────────
+
+@router.get("/doors/{door_id}/print-data", response_model=DoorPrintDataSchema)
+async def get_door_print_data(
+    door_id: uuid.UUID = Path(...),
+    current_user: TokenPayload = Depends(require_permission("production:read")),
+    db: AsyncSession = Depends(get_db),
+) -> DoorPrintDataSchema:
+    return await services.get_door_print_data(db, door_id)
+
+
+@router.get("/stages/{stage_id}/print-data", response_model=StagePrintDataSchema)
+async def get_stage_print_data(
+    stage_id: uuid.UUID = Path(...),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: TokenPayload = Depends(require_permission("production:read")),
+    db: AsyncSession = Depends(get_db),
+) -> StagePrintDataSchema:
+    return await services.get_stage_print_data(db, stage_id, limit=limit)
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────────

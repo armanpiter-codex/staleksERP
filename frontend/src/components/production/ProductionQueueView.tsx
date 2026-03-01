@@ -10,6 +10,7 @@ import {
   Clock,
   Loader2,
   X,
+  Printer,
 } from "lucide-react";
 import clsx from "clsx";
 import {
@@ -18,6 +19,8 @@ import {
   moveDoorNext,
   moveDoorPrev,
   getDoorHistory,
+  getDoorPrintData,
+  getStagePrintData,
 } from "@/lib/productionApi";
 import type {
   ProductionDoor,
@@ -25,9 +28,13 @@ import type {
   ProductionStage,
   DoorStageHistory,
   QueueParams,
+  DoorPrintData,
+  StagePrintData,
 } from "@/types/production";
 import { apiError, fmtDate } from "@/lib/utils";
 import { ErrorAlert, Spinner, Modal } from "@/components/ui";
+import { DoorPrintCard } from "./DoorPrintCard";
+import { StagePrintSummary } from "./StagePrintSummary";
 
 export function ProductionQueueView() {
   const [doors, setDoors] = useState<ProductionDoor[]>([]);
@@ -52,6 +59,11 @@ export function ProductionQueueView() {
   const [historyDoorNumber, setHistoryDoorNumber] = useState("");
   const [history, setHistory] = useState<DoorStageHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Print overlays
+  const [doorPrintData, setDoorPrintData] = useState<DoorPrintData | null>(null);
+  const [stagePrintData, setStagePrintData] = useState<StagePrintData | null>(null);
+  const [printLoading, setPrintLoading] = useState<string | null>(null);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -126,6 +138,31 @@ export function ProductionQueueView() {
     setHistory([]);
   };
 
+  const openDoorPrint = async (doorId: string) => {
+    setPrintLoading(doorId);
+    try {
+      const data = await getDoorPrintData(doorId);
+      setDoorPrintData(data);
+    } catch (err) {
+      setError(apiError(err));
+    } finally {
+      setPrintLoading(null);
+    }
+  };
+
+  const openStagePrint = async () => {
+    if (!stageFilter) return;
+    setPrintLoading("stage");
+    try {
+      const data = await getStagePrintData(stageFilter);
+      setStagePrintData(data);
+    } catch (err) {
+      setError(apiError(err));
+    } finally {
+      setPrintLoading(null);
+    }
+  };
+
   const resetFilters = () => {
     setStageFilter("");
     setSearchQuery("");
@@ -198,6 +235,20 @@ export function ProductionQueueView() {
         >
           <Star size={14} /> Срочные
         </button>
+        {stageFilter && (
+          <button
+            onClick={openStagePrint}
+            disabled={printLoading === "stage"}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition disabled:opacity-50"
+          >
+            {printLoading === "stage" ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Printer size={14} />
+            )}
+            Печать списка
+          </button>
+        )}
         {hasFilters && (
           <button
             onClick={resetFilters}
@@ -313,6 +364,18 @@ export function ProductionQueueView() {
                         >
                           <Clock size={14} />
                         </button>
+                        <button
+                          onClick={() => openDoorPrint(door.door_id)}
+                          disabled={printLoading === door.door_id}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30"
+                          title="Печать карточки"
+                        >
+                          {printLoading === door.door_id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Printer size={14} />
+                          )}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -347,6 +410,14 @@ export function ProductionQueueView() {
           </>
         )}
       </div>
+
+      {/* Print overlays */}
+      {doorPrintData && (
+        <DoorPrintCard data={doorPrintData} onClose={() => setDoorPrintData(null)} />
+      )}
+      {stagePrintData && (
+        <StagePrintSummary data={stagePrintData} onClose={() => setStagePrintData(null)} />
+      )}
 
       {/* History modal */}
       {historyDoorId && (

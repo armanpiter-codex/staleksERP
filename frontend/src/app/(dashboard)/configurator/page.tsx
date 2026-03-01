@@ -15,9 +15,10 @@ import {
   PreviewTab,
   ExportImportTab,
   ServicesFinanceTab,
+  PermissionsTab,
 } from "@/components/configurator-admin";
 
-type AdminTab = "types" | "models" | "sections" | "fields" | "rules" | "preview" | "export" | "services";
+type AdminTab = "types" | "models" | "sections" | "fields" | "rules" | "preview" | "export" | "services" | "permissions";
 
 export default function ConfiguratorPage() {
   const [catalog, setCatalog] = useState<ConfiguratorCatalog | null>(null);
@@ -58,6 +59,7 @@ export default function ConfiguratorPage() {
     { key: "preview", label: "Превью" },
     { key: "export", label: "Экспорт/Импорт" },
     { key: "services", label: "Услуги и финансы" },
+    { key: "permissions", label: "Права" },
   ];
 
   return (
@@ -73,6 +75,7 @@ export default function ConfiguratorPage() {
         {activeTab === "preview" && <PreviewTab catalog={catalog} rules={rules} />}
         {activeTab === "export" && <ExportImportTab fields={catalog.field_definitions} rules={rules} groups={catalog.groups} />}
         {activeTab === "services" && <ServicesFinanceTab />}
+        {activeTab === "permissions" && <PermissionsTab />}
       </div>
     </div>
   );

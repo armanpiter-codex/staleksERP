@@ -222,6 +222,8 @@ export interface FieldDefinitionCreate {
   notes?: string | null;
   is_display?: boolean;
   display_order?: number | null;
+  is_print?: boolean;
+  print_order?: number | null;
 }
 
 export interface FieldDefinitionUpdate {
@@ -239,6 +241,8 @@ export interface FieldDefinitionUpdate {
   is_active?: boolean;
   is_display?: boolean;
   display_order?: number | null;
+  is_print?: boolean;
+  print_order?: number | null;
 }
 
 export async function createFieldDefinition(

@@ -116,6 +116,8 @@ class DoorFieldDefinitionSchema(BaseModel):
     is_active: bool
     is_display: bool
     display_order: int | None
+    is_print: bool
+    print_order: int | None
 
     model_config = {"from_attributes": True}
 
@@ -153,6 +155,8 @@ class DoorFieldDefinitionCreateSchema(BaseModel):
     notes: str | None = None
     is_display: bool = True
     display_order: int | None = None
+    is_print: bool = True
+    print_order: int | None = None
 
 
 class DoorFieldDefinitionUpdateSchema(BaseModel):
@@ -171,6 +175,8 @@ class DoorFieldDefinitionUpdateSchema(BaseModel):
     is_active: bool | None = None
     is_display: bool | None = None
     display_order: int | None = None
+    is_print: bool | None = None
+    print_order: int | None = None
 
 
 # ─── Visibility Rules ─────────────────────────────────────────────────────────

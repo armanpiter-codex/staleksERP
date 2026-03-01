@@ -12,6 +12,7 @@ from app.auth.schemas import (
     RoleDetailSchema,
     TokenPayload,
     TokenResponse,
+    UpdateRolePermissionsRequest,
     UserMeSchema,
 )
 from app.auth.security import create_access_token, hash_password, verify_password
@@ -204,7 +205,7 @@ async def change_password(
 
 @router.get("/permissions", response_model=list[PermissionSchema])
 async def list_permissions(
-    current_user: TokenPayload = Depends(require_permission("admin:system")),
+    current_user: TokenPayload = Depends(require_permission("auth:manage_permissions")),
     db: AsyncSession = Depends(get_db),
 ) -> list[PermissionSchema]:
     return await service.get_all_permissions(db)
@@ -212,7 +213,19 @@ async def list_permissions(
 
 @router.get("/roles", response_model=list[RoleDetailSchema])
 async def list_roles(
-    current_user: TokenPayload = Depends(require_permission("auth:manage_roles")),
+    current_user: TokenPayload = Depends(require_permission("auth:manage_permissions")),
     db: AsyncSession = Depends(get_db),
 ) -> list[RoleDetailSchema]:
     return await service.get_all_roles(db)
+
+
+@router.put("/roles/{role_id}/permissions", response_model=RoleDetailSchema)
+async def update_role_permissions(
+    role_id: str,
+    data: UpdateRolePermissionsRequest,
+    current_user: TokenPayload = Depends(require_permission("auth:manage_permissions")),
+    db: AsyncSession = Depends(get_db),
+) -> RoleDetailSchema:
+    import uuid as _uuid
+    rid = _uuid.UUID(role_id)
+    return await service.update_role_permissions(db, rid, data.permission_ids)

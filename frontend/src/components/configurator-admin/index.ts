@@ -10,3 +10,4 @@ export { RuleCreateModal } from "./RuleCreateModal";
 export { PreviewTab } from "./PreviewTab";
 export { ExportImportTab } from "./ExportImportTab";
 export { ServicesFinanceTab } from "./ServicesFinanceTab";
+export { PermissionsTab } from "./PermissionsTab";
