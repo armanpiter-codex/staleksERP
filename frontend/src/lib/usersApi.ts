@@ -61,7 +61,7 @@ export interface ListUsersParams {
 
 // ─── API Functions ──────────────────────────────────────────────────────────────
 
-const BASE = "/users";
+const BASE = "/users/";
 
 export async function listUsers(
   params?: ListUsersParams,

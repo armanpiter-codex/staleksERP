@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
 
 export default function DashboardLayout({
   children,
@@ -40,6 +41,7 @@ export default function DashboardLayout({
       <main className="flex-1 overflow-auto">
         {children}
       </main>
+      <FeedbackWidget />
     </div>
   );
 }

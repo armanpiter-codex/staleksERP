@@ -32,6 +32,10 @@ export const PERMISSIONS = {
   // Dashboard
   DASHBOARD_OWNER: "dashboard:owner",
   DASHBOARD_FOREMAN: "dashboard:foreman",
+  // Feedback
+  FEEDBACK_WRITE: "feedback:write",
+  FEEDBACK_READ: "feedback:read",
+  FEEDBACK_MANAGE: "feedback:manage",
   // Admin
   ADMIN_DIRECTORIES: "admin:directories",
   ADMIN_INTEGRATIONS: "admin:integrations",

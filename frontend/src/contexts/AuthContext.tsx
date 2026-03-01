@@ -11,6 +11,38 @@ import {
 import api, { getAccessToken, setAccessToken } from "@/lib/api";
 import type { AuthContextValue, User } from "@/types/auth";
 
+// Decode JWT payload without an external library
+function parseJwtPayload(token: string): Record<string, unknown> {
+  const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(base64));
+}
+
+// Build a minimal User from JWT payload — enough for auth checks and UI.
+// Full profile (email, phone, etc.) is fetched in background after mount.
+function userFromToken(token: string): User {
+  const p = parseJwtPayload(token);
+  return {
+    id: p.sub as string,
+    username: p.username as string,
+    full_name: p.full_name as string,
+    email: null,
+    phone: null,
+    telegram_id: null,
+    is_active: true,
+    is_verified: true,
+    last_login_at: null,
+    created_at: "",
+    roles: (p.roles as string[]).map((name) => ({
+      id: "",
+      name,
+      display_name: name,
+      description: null,
+      is_system: true,
+    })),
+    permissions: p.permissions as string[],
+  };
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const REFRESH_INTERVAL_MS = 13 * 60 * 1000; // 13 minutes (before 15-min expiry)
@@ -53,16 +85,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Silent refresh on mount — restore session from HttpOnly cookie
+  // Silent refresh on mount — restore session from HttpOnly cookie.
+  // Optimized: decode JWT locally (1 API call) instead of calling /auth/me (2 calls).
+  // Full profile is fetched in background so it doesn't block the spinner.
   useEffect(() => {
     const tryRestore = async () => {
       try {
         const { data } = await api.post<{ access_token: string }>("/auth/refresh");
-        const me = await fetchMe(data.access_token);
-        if (me) {
-          setUser(me);
-          startRefreshTimer();
-        }
+        setAccessToken(data.access_token);
+        // Set user immediately from JWT — hides spinner after just 1 network round-trip
+        setUser(userFromToken(data.access_token));
+        startRefreshTimer();
+        // Fetch full profile (email, phone, roles with display names) in background
+        fetchMe(data.access_token).then((me) => {
+          if (me) setUser(me);
+        });
       } catch {
         // No valid session — user needs to log in
       } finally {

@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     BITRIX24_WEBHOOK_URL: str | None = None
     BITRIX24_API_KEY: str | None = None
 
+    # OpenAI (optional — for feedback AI processing)
+    OPENAI_API_KEY: str | None = None
+
+    # File uploads
+    UPLOAD_DIR: str = "uploads"
+    MAX_FEEDBACK_AUDIO_SIZE: int = 10 * 1024 * 1024   # 10 MB
+    MAX_FEEDBACK_IMAGE_SIZE: int = 5 * 1024 * 1024    # 5 MB
+    MAX_FEEDBACK_ATTACHMENTS: int = 5
+
     # S3 (Phase 2)
     S3_ENDPOINT_URL: str | None = None
     S3_ACCESS_KEY: str | None = None

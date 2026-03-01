@@ -60,6 +60,7 @@ from app.orders.router import facilities_router  # noqa: E402
 from app.services.router import router as service_types_router  # noqa: E402
 from app.configurator.router import router as configurator_router  # noqa: E402
 from app.production.router import router as production_router  # noqa: E402
+from app.feedback.router import router as feedback_router  # noqa: E402
 
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(users_router, prefix=settings.API_V1_PREFIX)
@@ -68,6 +69,7 @@ app.include_router(facilities_router, prefix=settings.API_V1_PREFIX)
 app.include_router(service_types_router, prefix=settings.API_V1_PREFIX)
 app.include_router(configurator_router, prefix=settings.API_V1_PREFIX)
 app.include_router(production_router, prefix=settings.API_V1_PREFIX)
+app.include_router(feedback_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health")

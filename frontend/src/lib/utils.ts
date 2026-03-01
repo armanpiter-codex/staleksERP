@@ -20,8 +20,9 @@ export function kzt(v: string | number | null | undefined): string {
  * Extract error detail from an axios-like error response.
  */
 export function apiError(err: unknown): string {
-  const e = err as { response?: { data?: { detail?: string } } };
-  return e?.response?.data?.detail ?? "Произошла ошибка";
+  const e = err as { response?: { data?: { detail?: string; message?: string } } };
+  const d = e?.response?.data;
+  return d?.detail ?? d?.message ?? "Произошла ошибка";
 }
 
 /**
